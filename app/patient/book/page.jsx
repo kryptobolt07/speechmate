@@ -9,23 +9,30 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Input } from "@/components/ui/input"
 import { format } from "date-fns"
 import { CalendarIcon, Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
 export default function BookAppointment() {
   const [step, setStep] = useState(1)
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [formData, setFormData] = useState({
     hospital: "",
     issueDescription: "",
     date: undefined,
   })
-  const [suggestedTherapist, setSuggestedTherapist] = useState(null)
+  const [classifiedCondition, setClassifiedCondition] = useState(null)
+  const [availableTherapists, setAvailableTherapists] = useState([])
+  const [selectedTherapistId, setSelectedTherapistId] = useState(null)
+  const [selectedTime, setSelectedTime] = useState("")
+  const [isLoadingCondition, setIsLoadingCondition] = useState(false)
+  const [isLoadingTherapists, setIsLoadingTherapists] = useState(false)
+  const [isLoadingBooking, setIsLoadingBooking] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
 
@@ -36,55 +43,116 @@ export default function BookAppointment() {
     })
   }
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 1) {
       if (!formData.hospital || !formData.issueDescription) {
-        toast({
-          variant: "destructive",
-          title: "Missing information",
-          description: "Please fill in all required fields.",
-        })
+        toast({ variant: "destructive", title: "Missing information", description: "Please select a location and describe your issue." })
         return
       }
       setStep(2)
     } else if (step === 2) {
       if (!formData.date) {
-        toast({
-          variant: "destructive",
-          title: "Missing information",
-          description: "Please select a preferred date.",
-        })
+        toast({ variant: "destructive", title: "Missing information", description: "Please select a preferred date." })
         return
       }
-      setIsAnalyzing(true)
-      // Simulate AI analysis
-      setTimeout(() => {
-        setIsAnalyzing(false)
-        setSuggestedTherapist({
-          name: "Dr. Sarah Johnson",
-          specialty: "Speech-Language Pathologist",
-          experience: "8 years",
-          rating: 4.9,
-          hospital: "Downtown Medical Center",
-          image: "/placeholder.svg?height=80&width=80",
+      
+      setIsLoadingCondition(true)
+      setIsLoadingTherapists(true)
+      setStep(3)
+      
+      let condition = null;
+      try {
+        const classifyResponse = await fetch("/api/llm/classify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description: formData.issueDescription }),
         })
-        setStep(3)
-      }, 2000)
+        if (!classifyResponse.ok) {
+          throw new Error("Failed to classify condition")
+        }
+        const classifyData = await classifyResponse.json()
+        condition = classifyData.condition
+        setClassifiedCondition(condition)
+        setIsLoadingCondition(false)
+        
+        if (condition) {
+          const formattedDate = format(formData.date, "yyyy-MM-dd")
+          const therapistUrl = `/api/therapists/available?condition=${encodeURIComponent(
+            condition,
+          )}&hospital=${encodeURIComponent(formData.hospital)}&date=${formattedDate}`
+          
+          const therapistsResponse = await fetch(therapistUrl)
+          if (!therapistsResponse.ok) {
+            throw new Error("Failed to fetch available therapists")
+          }
+          const therapistsData = await therapistsResponse.json()
+          setAvailableTherapists(therapistsData)
+        }
+        setIsLoadingTherapists(false)
+
+      } catch (error) {
+        console.error("Error during step 2->3 transition:", error)
+        toast({ variant: "destructive", title: "Error", description: error.message || "Could not find therapists. Please try again." })
+        setIsLoadingCondition(false)
+        setIsLoadingTherapists(false)
+        setStep(2)
+      }
     }
   }
 
   const handleBack = () => {
     if (step > 1) {
+      setAvailableTherapists([])
+      setClassifiedCondition(null)
+      setSelectedTherapistId(null)
+      setSelectedTime("")
       setStep(step - 1)
     }
   }
 
-  const handleConfirm = () => {
-    toast({
-      title: "Appointment Booked",
-      description: "Your appointment has been successfully scheduled.",
-    })
-    router.push("/patient/dashboard")
+  const handleConfirm = async () => {
+    if (!selectedTherapistId || !selectedTime) {
+       toast({ variant: "destructive", title: "Missing Information", description: "Please select a therapist and enter a preferred time." })
+       return
+    }
+    
+    setIsLoadingBooking(true)
+    try {
+        const payload = {
+            therapistId: selectedTherapistId,
+            appointmentDate: format(formData.date, "yyyy-MM-dd"),
+            appointmentTime: selectedTime,
+            type: "Initial Assessment",
+            condition: classifiedCondition,
+            notes: formData.issueDescription,
+        }
+        
+        const response = await fetch("/api/appointments/book", {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+        })
+        
+        const result = await response.json()
+        
+        if (!response.ok) {
+            throw new Error(result.error || "Booking failed. Please try again.")
+        }
+        
+        toast({
+            title: "Appointment Booked",
+            description: result.message || "Your appointment has been successfully scheduled.",
+        })
+        router.push("/patient/dashboard")
+        
+    } catch (error) {
+        console.error("Booking confirmation error:", error)
+        toast({ variant: "destructive", title: "Booking Error", description: error.message })
+    } finally {
+        setIsLoadingBooking(false)
+    }
   }
 
   return (
@@ -189,94 +257,82 @@ export default function BookAppointment() {
                 <Button variant="outline" onClick={handleBack}>
                   Back
                 </Button>
-                <Button onClick={handleNext}>Continue</Button>
+                <Button onClick={handleNext} disabled={isLoadingCondition || isLoadingTherapists}>
+                  {isLoadingCondition || isLoadingTherapists ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Find Therapists
+                </Button>
               </CardFooter>
             </Card>
           )}
 
-          {isAnalyzing && (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <Loader2 className="h-12 w-12 animate-spin text-teal-600 mb-4" />
-                <h3 className="text-lg font-medium">Analyzing your needs...</h3>
-                <p className="text-sm text-gray-500 mt-2 text-center max-w-md">
-                  Our AI is matching you with the best therapist based on your description and preferences.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {step === 3 && suggestedTherapist && (
+          {step === 3 && (
             <Card>
               <CardHeader>
                 <CardTitle>Step 3: Confirm your appointment</CardTitle>
-                <CardDescription>We've found the perfect therapist for your needs</CardDescription>
+                <CardDescription>
+                    {isLoadingCondition ? "Analyzing condition..." : classifiedCondition ? `We suggest therapists specializing in: ${classifiedCondition}` : "Select a therapist and time."}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="bg-teal-50 p-4 rounded-lg border border-teal-100">
-                  <p className="text-sm text-teal-800 font-medium">
-                    Based on your description, we've identified that you may benefit from therapy focusing on:
-                  </p>
-                  <ul className="list-disc list-inside mt-2 text-sm text-teal-700 space-y-1">
-                    <li>Articulation improvement</li>
-                    <li>Fluency enhancement</li>
-                    <li>Pronunciation exercises</li>
-                  </ul>
-                </div>
+                {isLoadingTherapists ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                        <Loader2 className="h-12 w-12 animate-spin text-teal-600 mb-4" />
+                        <p className="text-sm text-gray-500 mt-2">Finding available therapists...</p>
+                    </div>
+                ) : availableTherapists.length > 0 ? (
+                  <div>
+                    <Label>Select an available therapist:</Label>
+                    <RadioGroup 
+                        value={selectedTherapistId} 
+                        onValueChange={setSelectedTherapistId} 
+                        className="mt-2 space-y-3"
+                    >
+                      {availableTherapists.map((therapist) => (
+                        <Label 
+                            key={therapist._id} 
+                            className="flex items-center space-x-3 border rounded-md p-3 hover:bg-gray-50 cursor-pointer"
+                        >
+                          <RadioGroupItem value={therapist._id} id={therapist._id} />
+                          <Avatar className="h-10 w-10">
+                             <AvatarImage src={therapist.profilePictureUrl || "/placeholder.svg?height=40&width=40"} alt={therapist.name} />
+                             <AvatarFallback>{therapist.name.split(" ").map((n) => n[0]).join("")}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <span className="font-medium block">{therapist.name}</span>
+                            <span className="text-sm text-gray-500 block">{therapist.specialty}</span>
+                          </div>
+                        </Label>
+                      ))}
+                    </RadioGroup>
 
-                <div className="border rounded-lg p-4">
-                  <div className="flex items-start space-x-4">
-                    <Avatar className="h-16 w-16">
-                      <AvatarImage src={suggestedTherapist.image} alt={suggestedTherapist.name} />
-                      <AvatarFallback>SJ</AvatarFallback>
-                    </Avatar>
-                    <div className="space-y-1">
-                      <h3 className="font-medium text-lg">{suggestedTherapist.name}</h3>
-                      <p className="text-sm text-gray-500">{suggestedTherapist.specialty}</p>
-                      <div className="flex items-center space-x-2">
-                        <div className="flex">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <svg
-                              key={star}
-                              className={`h-4 w-4 fill-current ${
-                                star <= Math.floor(suggestedTherapist.rating) ? "text-yellow-500" : "text-gray-300"
-                              }`}
-                              xmlns="http://www.w3.org/2000/svg"
-                              viewBox="0 0 24 24"
-                            >
-                              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
-                            </svg>
-                          ))}
-                        </div>
-                        <span className="text-sm text-gray-500">{suggestedTherapist.rating} (42 reviews)</span>
-                      </div>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Badge variant="outline">{suggestedTherapist.experience} experience</Badge>
-                        <Badge variant="outline">{suggestedTherapist.hospital}</Badge>
-                      </div>
+                    <div className="mt-6 space-y-2">
+                        <Label htmlFor="appointmentTime">Preferred Time (e.g., 10:30 AM)</Label>
+                        <Input 
+                            id="appointmentTime"
+                            type="text"
+                            placeholder="Enter preferred time" 
+                            value={selectedTime}
+                            onChange={(e) => setSelectedTime(e.target.value)}
+                        />
                     </div>
                   </div>
-                </div>
-
-                <div className="border rounded-lg p-4 space-y-3">
-                  <h3 className="font-medium">Appointment Details</h3>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="text-gray-500">Date:</div>
-                    <div>{format(formData.date, "PPP")}</div>
-                    <div className="text-gray-500">Time:</div>
-                    <div>10:00 AM (First available)</div>
-                    <div className="text-gray-500">Location:</div>
-                    <div>{suggestedTherapist.hospital}</div>
-                    <div className="text-gray-500">Session Duration:</div>
-                    <div>45 minutes</div>
-                  </div>
-                </div>
+                ) : (
+                   <p className="text-center text-gray-500 py-8">
+                       No therapists found matching your criteria for the selected date. Please try a different date or broaden your description.
+                   </p>
+                )}
               </CardContent>
               <CardFooter className="flex justify-between">
-                <Button variant="outline" onClick={handleBack}>
+                <Button variant="outline" onClick={handleBack} disabled={isLoadingBooking}>
                   Back
                 </Button>
-                <Button onClick={handleConfirm}>Confirm Appointment</Button>
+                <Button 
+                    onClick={handleConfirm} 
+                    disabled={isLoadingTherapists || isLoadingBooking || availableTherapists.length === 0}
+                >
+                  {isLoadingBooking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Confirm Booking
+                </Button>
               </CardFooter>
             </Card>
           )}
