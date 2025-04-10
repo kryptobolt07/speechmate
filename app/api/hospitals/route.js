@@ -1,88 +1,134 @@
 import { NextResponse } from "next/server"
+import dbConnect from "@/lib/dbConnect"
+import Hospital from "@/models/Hospital"
+import User from "@/models/User"
+import mongoose from 'mongoose'; // Needed for ObjectId check
 
-// Mock hospitals data
-const hospitals = [
-  {
-    id: "1",
-    name: "Downtown Medical Center",
-    address: "123 Main St, Downtown, CA 90001",
-    therapists: 8,
-    patients: 412,
-    image: "/placeholder.svg?height=40&width=40",
-  },
-  {
-    id: "2",
-    name: "North Valley Hospital",
-    address: "456 Valley Rd, Northside, CA 90002",
-    therapists: 6,
-    patients: 287,
-    image: "/placeholder.svg?height=40&width=40",
-  },
-  {
-    id: "3",
-    name: "East Side Clinic",
-    address: "789 East Blvd, Easttown, CA 90003",
-    therapists: 5,
-    patients: 203,
-    image: "/placeholder.svg?height=40&width=40",
-  },
-  {
-    id: "4",
-    name: "West End Health Center",
-    address: "321 West Ave, Westville, CA 90004",
-    therapists: 5,
-    patients: 346,
-    image: "/placeholder.svg?height=40&width=40",
-  },
-]
+// Helper function to generate slug (optional, if not provided by client)
+// function generateSlug(name) {
+//   return name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
+// }
 
 export async function GET(request) {
   try {
-    // In a real app, you would:
-    // 1. Verify the JWT token from the Authorization header
-    // 2. Fetch hospitals from the database
+    await dbConnect()
 
-    // Mock successful response
-    return NextResponse.json(hospitals)
+    // Optional: Verify admin role if only admins can list detailed counts
+    // const userPayload = JSON.parse(request.headers.get('x-user-payload') || '{}');
+    // if (userPayload.role !== 'admin') {
+    //   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // }
+
+    // Aggregation pipeline to fetch hospitals and count users
+    const hospitalsWithCounts = await Hospital.aggregate([
+      {
+        $lookup: {
+          from: "users", // The actual name of the users collection in MongoDB
+          localField: "_id",
+          foreignField: "hospitalId",
+          as: "assignedUsers",
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          slug: 1,
+          // Add other Hospital fields you want to return
+          therapists: {
+            $size: {
+              $filter: {
+                input: "$assignedUsers",
+                as: "user",
+                cond: { $eq: ["$$user.role", "therapist"] },
+              },
+            },
+          },
+          patients: {
+            $size: {
+              $filter: {
+                input: "$assignedUsers",
+                as: "user",
+                cond: { $eq: ["$$user.role", "patient"] },
+              },
+            },
+          },
+          // address: 1, // Include if needed by the frontend card
+          // phone: 1,
+          // description: 1,
+        },
+      },
+      {
+         $sort: { name: 1 } // Sort alphabetically by name
+      }
+    ])
+
+    return NextResponse.json(hospitalsWithCounts)
   } catch (error) {
-    console.error("Error fetching hospitals:", error)
+    console.error("Error fetching hospitals with counts:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
 export async function POST(request) {
   try {
-    const { name, address, city, state, zipCode, phone, description } = await request.json()
+    await dbConnect()
+
+    // Verify admin role
+    const userPayloadHeader = request.headers.get('x-user-payload');
+    if (!userPayloadHeader) {
+        return NextResponse.json({ error: "Authentication data missing" }, { status: 401 });
+    }
+    let userPayload;
+    try { userPayload = JSON.parse(userPayloadHeader); } catch (e) {
+        return NextResponse.json({ error: "Invalid authentication data format" }, { status: 400 });
+    }
+    if (userPayload.role !== 'admin') {
+        return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
+    }
+
+    // Assume client sends name and a desired slug
+    const { name, slug, address, city, state, zipCode, phone, description } = await request.json()
 
     // Validate required fields
-    if (!name || !address || !city || !state || !zipCode) {
-      return NextResponse.json({ error: "Name, address, city, state, and zip code are required" }, { status: 400 })
+    if (!name || !slug ) { // Removed other address fields as required for now, add back if needed
+      return NextResponse.json({ error: "Name and Slug are required" }, { status: 400 })
     }
 
-    // In a real app, you would:
-    // 1. Verify the JWT token and admin role
-    // 2. Create the hospital in the database
+    const processedSlug = slug.toLowerCase().trim();
 
-    // Mock successful creation
-    const newHospital = {
-      id: `hospital-${Date.now()}`,
+    // Check if hospital with the same slug already exists
+    const existingHospital = await Hospital.findOne({ slug: processedSlug })
+    if (existingHospital) {
+      return NextResponse.json(
+        { error: `Hospital with slug '${processedSlug}' already exists` },
+        { status: 409 } // Conflict
+      )
+    }
+
+    // Create new hospital
+    const newHospital = new Hospital({
       name,
-      address: `${address}, ${city}, ${state} ${zipCode}`,
-      phone,
-      description,
-      therapists: 0,
-      patients: 0,
-      image: "/placeholder.svg?height=40&width=40",
-    }
-
-    // Return the new hospital
-    return NextResponse.json({
-      success: true,
-      hospital: newHospital,
-      message: "Hospital created successfully",
+      slug: processedSlug,
+      // Add other fields as needed
+      // address, city, state, zipCode, phone, description 
     })
+
+    const savedHospital = await newHospital.save()
+
+    return NextResponse.json(
+      {
+        success: true,
+        hospital: savedHospital,
+        message: "Hospital created successfully",
+      },
+      { status: 201 } // Created
+    )
   } catch (error) {
     console.error("Hospital creation error:", error)
+     if (error.name === "ValidationError") {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
