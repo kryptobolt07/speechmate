@@ -132,7 +132,7 @@ export default function PatientDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {patientData.appointments.length > 0 ? (
+                  {patientData && Array.isArray(patientData.appointments) && patientData.appointments.length > 0 ? (
                     patientData.appointments.map((appointment) => (
                       <div key={appointment.id} className="flex items-start space-x-4 rounded-lg border p-3">
                         <div className="rounded-full bg-teal-100 p-2">
@@ -155,11 +155,6 @@ export default function PatientDashboard() {
                   ) : (
                     <div className="text-center py-4">
                       <p className="text-gray-500">No upcoming appointments</p>
-                      <Link href="/dashboard/patient/book">
-                        <Button variant="link" className="mt-2">
-                          Book an appointment
-                        </Button>
-                      </Link>
                     </div>
                   )}
                 </div>
@@ -172,7 +167,7 @@ export default function PatientDashboard() {
                 <CardDescription>Your assigned healthcare provider</CardDescription>
               </CardHeader>
               <CardContent>
-                {patientData.assignedTherapist ? (
+                {patientData && patientData.assignedTherapist ? (
                   <div className="flex items-start space-x-4">
                     <Avatar className="h-16 w-16">
                       <AvatarImage src={patientData.assignedTherapist.image} alt={patientData.assignedTherapist.name} />
@@ -198,11 +193,6 @@ export default function PatientDashboard() {
                 ) : (
                   <div className="text-center py-4">
                     <p className="text-gray-500">No therapist assigned yet</p>
-                    <Link href="/dashboard/patient/book">
-                      <Button variant="link" className="mt-2">
-                        Book your first appointment
-                      </Button>
-                    </Link>
                   </div>
                 )}
               </CardContent>
@@ -253,29 +243,37 @@ export default function PatientDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {patientData.pastAppointments.map((appointment) => (
-                        <tr key={appointment.id} className="border-b">
-                          <td className="py-3">{appointment.therapistName}</td>
-                          <td className="py-3">
-                            {appointment.date}, {appointment.time}
-                          </td>
-                          <td className="py-3">{appointment.type}</td>
-                          <td className="py-3">
-                            <Badge variant="outline">Completed</Badge>
-                          </td>
-                          <td className="py-3">
-                            {!appointment.reviewed ? (
-                              <Link href={`/dashboard/patient/reviews/add/${appointment.id}`}>
-                                <Button size="sm" variant="outline">
-                                  Leave Review
-                                </Button>
-                              </Link>
-                            ) : (
-                              <Badge variant="secondary">Reviewed</Badge>
-                            )}
+                      {patientData && Array.isArray(patientData.pastAppointments) && patientData.pastAppointments.length > 0 ? (
+                        patientData.pastAppointments.map((appointment) => (
+                          <tr key={appointment.id} className="border-b">
+                            <td className="py-3">{appointment.therapistName}</td>
+                            <td className="py-3">
+                              {appointment.date}, {appointment.time}
+                            </td>
+                            <td className="py-3">{appointment.type}</td>
+                            <td className="py-3">
+                              <Badge variant="outline">Completed</Badge>
+                            </td>
+                            <td className="py-3">
+                              {!appointment.reviewed ? (
+                                <Link href={`/dashboard/patient/reviews/add/${appointment.id}`}>
+                                  <Button size="sm" variant="outline">
+                                    Leave Review
+                                  </Button>
+                                </Link>
+                              ) : (
+                                <Badge variant="secondary">Reviewed</Badge>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="5" className="text-center py-4 text-gray-500">
+                            No past appointments found.
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
