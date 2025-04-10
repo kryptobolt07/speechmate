@@ -21,8 +21,10 @@ export async function POST(request) {
     }
     const { userId: patientId, role } = userPayload // Assuming userId is the patient making the request
 
-    // Optional: Could add check here that role is 'patient' if only patients can book
-    // if (role !== 'patient') { ... }
+    // Added Role Check
+    if (role !== 'patient') {
+      return NextResponse.json({ error: "Forbidden: Only patients can book appointments" }, { status: 403 })
+    }
 
     // Extract data from request body
     const {

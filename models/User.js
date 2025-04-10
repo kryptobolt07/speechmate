@@ -47,8 +47,14 @@ const UserSchema = new mongoose.Schema({
     type: String,
     // Only relevant if role is 'therapist'
   },
-  // Patient specific fields (can add more as needed)
-  // e.g., medicalHistory, assignedTherapistId, etc.
+  // Patient specific fields
+  assignedTherapistId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User', // References another User document (the therapist)
+    // This field is primarily relevant for users with role: 'patient'
+    // We might add a validator later to enforce this only for patients if needed
+  },
+  // e.g., medicalHistory, etc.
 
   // Admin specific fields (can add more as needed)
 

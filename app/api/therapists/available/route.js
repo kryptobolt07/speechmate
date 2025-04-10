@@ -8,6 +8,16 @@ import Hospital from "@/models/Hospital"
 
 export async function GET(request) {
   try {
+    // --- Check for user payload (any authenticated user) --- 
+    const userPayloadHeader = request.headers.get('x-user-payload');
+    if (!userPayloadHeader) {
+      return NextResponse.json({ error: "Authentication data missing" }, { status: 401 });
+    }
+    try { JSON.parse(userPayloadHeader); } catch (e) {
+      return NextResponse.json({ error: "Invalid authentication data format" }, { status: 400 });
+    }
+    // --- End Auth Check --- 
+
     await dbConnect()
 
     const { searchParams } = new URL(request.url)

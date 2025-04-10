@@ -2,6 +2,17 @@ import { NextResponse } from "next/server"
 
 export async function POST(request) {
   try {
+    // --- Check for user payload (any authenticated user) --- 
+    const userPayloadHeader = request.headers.get('x-user-payload');
+    if (!userPayloadHeader) {
+      return NextResponse.json({ error: "Authentication data missing" }, { status: 401 });
+    }
+    try { JSON.parse(userPayloadHeader); } catch (e) {
+      // Just validate JSON format, don't need the payload content itself
+      return NextResponse.json({ error: "Invalid authentication data format" }, { status: 400 });
+    }
+    // --- End Auth Check --- 
+
     const { description } = await request.json()
 
     if (!description) {

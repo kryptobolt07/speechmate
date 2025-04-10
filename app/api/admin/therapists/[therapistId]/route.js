@@ -103,8 +103,13 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: "Therapist ID is required" }, { status: 400 })
   }
 
+  let session = null; // Mongoose transaction session
   try {
     await dbConnect()
+
+    // --- Start Transaction --- (Optional but recommended for multi-step operations)
+    // session = await mongoose.startSession();
+    // session.startTransaction();
 
     // Verify admin role (from middleware)
     const userPayloadHeader = request.headers.get('x-user-payload');
@@ -114,23 +119,50 @@ export async function DELETE(request, { params }) {
 
     // Find and delete the therapist
     // Ensure we are only deleting users with the 'therapist' role for safety
-    const deletedTherapist = await User.findOneAndDelete({ _id: therapistId, role: 'therapist' });
+    const deletedTherapist = await User.findOneAndDelete(
+      { _id: therapistId, role: 'therapist' },
+      // { session } // Include session if using transactions
+    );
 
     if (!deletedTherapist) {
+      // If using transactions, abort here
+      // if (session) await session.abortTransaction();
       return NextResponse.json({ error: "Therapist not found or already deleted" }, { status: 404 })
     }
 
-    // TODO: Add logic here to handle patient reassignments if necessary
-    // e.g., find patients assigned to this therapist and set their therapistId to null or reassign
-    console.log(`Therapist ${therapistId} deleted. Consider patient reassignment.`);
+    // --- Patient Reassignment Logic --- 
+    console.log(`Unassigning patients from deleted therapist ${therapistId}...`);
+    
+    // Find all patients assigned to this therapist and set their assignedTherapistId to null
+    const updateResult = await User.updateMany(
+        { role: 'patient', assignedTherapistId: therapistId },
+        { $set: { assignedTherapistId: null } },
+        // { session } // Include session if using transactions
+    );
 
-    return NextResponse.json({ success: true, message: "Therapist deleted successfully." });
+    console.log(`Patients unassigned: ${updateResult.modifiedCount}`);
+    // Consider logging updateResult.matchedCount as well for debugging
+
+    // --- Commit Transaction --- (If using transactions)
+    // if (session) await session.commitTransaction();
+
+    return NextResponse.json({ 
+      success: true, 
+      message: `Therapist deleted successfully. ${updateResult.modifiedCount} patient(s) were unassigned.` 
+    });
 
   } catch (error) {
     console.error(`Error deleting therapist ${therapistId}:`, error)
+
+    // --- Abort Transaction on Error --- (If using transactions)
+    // if (session) await session.abortTransaction();
+
     if (error.name === 'CastError') {
         return NextResponse.json({ error: "Invalid Therapist ID format" }, { status: 400 });
     }
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } finally {
+     // --- End Session --- (If using transactions)
+    // if (session) session.endSession();
   }
 } 

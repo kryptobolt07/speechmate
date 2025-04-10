@@ -103,11 +103,13 @@ export const config = {
     '/api/therapists/me/:path*',
     '/api/admin/:path*',
     '/api/appointments/book',
+    '/api/hospitals/:path*',
+    '/api/therapists/available/:path*',
 
     // Protected Pages (require user to be logged in)
     '/patient/dashboard/:path*',
     '/therapist/dashboard/:path*',
-    '/admin/dashboard/:path*',
+    '/admin/:path*',
     '/patient/book/:path*',
     '/patient/reviews/add/:path*',
   ],
