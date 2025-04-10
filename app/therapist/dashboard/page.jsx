@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Bell, CheckCircle, Clock, FileText, Loader2 } from "lucide-react" // Added Loader2
+import { Bell, CheckCircle, Clock, FileText, Loader2, Menu, X } from "lucide-react" // Added Menu, X
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { useToast } from "@/components/ui/use-toast" // Ensure correct path
@@ -17,6 +17,7 @@ export default function TherapistDashboard() {
   const [therapistInfo, setTherapistInfo] = useState(null) // To store therapist name etc.
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false) // State for mobile sidebar
   const { toast } = useToast()
 
   // Mock data // Removed mock data
@@ -104,38 +105,37 @@ export default function TherapistDashboard() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <div className="hidden md:flex md:w-64 md:flex-col">
-        <TherapistSidebar />
-      </div>
-      <div className="flex-1">
-        <header className="bg-white shadow-sm border-b">
+      <TherapistSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      
+      <div className="flex-1 flex flex-col">
+        <header className="sticky top-0 z-10 bg-white shadow-sm border-b">
           <div className="flex h-16 items-center justify-between px-4">
-            <h2 className="text-xl font-bold">Therapist Dashboard</h2>
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon">
-                <Bell className="h-5 w-5" />
-              </Button>
+            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsSidebarOpen(true)}>
+                <Menu className="h-6 w-6" /><span className="sr-only">Open sidebar</span>
+            </Button>
+            <div className="md:hidden flex-1"></div> 
+
+            <h2 className="text-xl font-bold hidden md:block">Therapist Dashboard</h2>
+            
+            <div className="flex items-center gap-4 ml-auto">
+              <Button variant="ghost" size="icon"><Bell className="h-5 w-5" /></Button>
               <Avatar>
-                 {/* TODO: Use therapistInfo.profilePictureUrl if available */}
                 <AvatarImage src="/placeholder.svg?height=32&width=32" alt={therapistName} />
                 <AvatarFallback>{therapistInitials}</AvatarFallback>
               </Avatar>
             </div>
           </div>
         </header>
-        <main className="p-6">
-          <div className="mb-8">
-             {/* TODO: Get therapist name dynamically if not already in therapistInfo */}
-            <h1 className="text-2xl font-bold text-gray-900">Welcome, {therapistName}</h1>
+        <main className="flex-1 p-4 md:p-6">
+          <div className="mb-6 md:mb-8">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">Welcome, {therapistName}</h1>
             <p className="text-gray-600 mt-1">Here's your schedule overview</p>
           </div>
 
-          {/* Stats Cards - Update with fetched data */}
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-3">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle>Today's Sessions</CardTitle>
-                {/* TODO: Show current date dynamically */}
                 <CardDescription>May 10, 2025</CardDescription>
               </CardHeader>
               <CardContent>
@@ -146,7 +146,6 @@ export default function TherapistDashboard() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle>This Week</CardTitle>
-                 {/* TODO: Show current week dynamically */}
                 <CardDescription>May 10 - May 16</CardDescription>
               </CardHeader>
               <CardContent>
@@ -157,7 +156,6 @@ export default function TherapistDashboard() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle>Patient Reviews</CardTitle>
-                {/* TODO: Fetch review data dynamically */}
                 <CardDescription>Last 30 days</CardDescription>
               </CardHeader>
               <CardContent>
@@ -167,31 +165,29 @@ export default function TherapistDashboard() {
             </Card>
           </div>
 
-          <div className="mt-8">
+          <div className="mt-6 md:mt-8">
             <Tabs defaultValue="today">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between mb-4 gap-2">
                 <TabsList>
                   <TabsTrigger value="today">Today</TabsTrigger>
                   <TabsTrigger value="week">This Week</TabsTrigger>
                   <TabsTrigger value="calendar">Full Calendar</TabsTrigger>
                 </TabsList>
                 <Link href="/therapist/schedule">
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto">
                     View Full Schedule
                   </Button>
                 </Link>
               </div>
 
-              {/* Today's Appointments - Use fetched data */}
               <TabsContent value="today" className="space-y-4">
                 {todayAppointments.length > 0 ? (
                   todayAppointments.map((appointment) => (
                     <Card key={appointment.id}>
                       <CardContent className="p-0">
-                        <div className="flex items-center p-4 border-l-4 border-teal-500">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center p-4 border-l-4 border-teal-500">
                           <div className="mr-4">
                             <Avatar>
-                              {/* TODO: Get patient image dynamically */}
                               <AvatarImage src="/placeholder.svg?height=40&width=40" alt={appointment.patient} />
                               <AvatarFallback>
                                 {appointment.patient
@@ -201,19 +197,18 @@ export default function TherapistDashboard() {
                               </AvatarFallback>
                             </Avatar>
                           </div>
-                          <div className="flex-1">
-                            <div className="flex justify-between items-start">
+                          <div className="flex-1 w-full sm:w-auto mt-3 sm:mt-0 sm:ml-4">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
                               <div>
                                 <h3 className="font-medium">{appointment.patient}</h3>
                                 <p className="text-sm text-gray-500">{appointment.condition}</p>
                               </div>
-                              <Badge variant="outline" className="ml-2">
+                              <Badge variant="outline" className="ml-0 sm:ml-2 mt-1 sm:mt-0">
                                 {appointment.time} • {appointment.duration}
                               </Badge>
                             </div>
                           </div>
-                          <div className="ml-4 flex space-x-2">
-                            {/* TODO: Add functionality to buttons */}
+                          <div className="ml-0 sm:ml-4 mt-3 sm:mt-0 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 w-full sm:w-auto">
                             <Button size="sm" variant="outline">
                               <CheckCircle className="mr-2 h-4 w-4" />
                               Complete
@@ -232,16 +227,14 @@ export default function TherapistDashboard() {
                   )}
               </TabsContent>
 
-              {/* This Week's Appointments - Use fetched data */}
               <TabsContent value="week" className="space-y-4">
                 {weekAppointments.length > 0 ? (
                   weekAppointments.map((appointment) => (
                     <Card key={appointment.id}>
                       <CardContent className="p-0">
-                        <div className="flex items-center p-4 border-l-4 border-teal-500">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center p-4 border-l-4 border-teal-500">
                           <div className="mr-4">
                             <Avatar>
-                               {/* TODO: Get patient image dynamically */}
                               <AvatarImage src="/placeholder.svg?height=40&width=40" alt={appointment.patient} />
                               <AvatarFallback>
                                 {appointment.patient
@@ -251,18 +244,17 @@ export default function TherapistDashboard() {
                               </AvatarFallback>
                             </Avatar>
                           </div>
-                          <div className="flex-1">
-                            <div className="flex justify-between items-start">
+                          <div className="flex-1 w-full sm:w-auto mt-3 sm:mt-0 sm:ml-4">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
                               <div>
                                 <h3 className="font-medium">{appointment.patient}</h3>
                                 <p className="text-sm text-gray-500">{appointment.condition}</p>
                               </div>
-                              <Badge variant="outline" className="ml-2">
+                              <Badge variant="outline" className="ml-0 sm:ml-2 mt-1 sm:mt-0">
                                 {appointment.date} • {appointment.time}
                               </Badge>
                             </div>
                           </div>
-                          {/* TODO: Add action buttons if needed for weekly view? */}
                         </div>
                       </CardContent>
                     </Card>
@@ -288,9 +280,6 @@ export default function TherapistDashboard() {
               </TabsContent>
             </Tabs>
           </div>
-
-           {/* TODO: Add Recent Patient Notes / Activity Feed dynamically */}
-          {/* <div className="mt-8 grid gap-6 md:grid-cols-2"> ... </div> */}
         </main>
       </div>
     </div>

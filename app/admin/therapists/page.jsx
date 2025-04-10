@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Bell, Plus, Search, Star, Loader2, Edit, Trash2, Users } from "lucide-react"
+import { Bell, Plus, Search, Star, Loader2, Edit, Trash2, Users, Menu, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import {
   Dialog,
@@ -54,6 +54,7 @@ export default function TherapistsManagement() {
   const [therapistToDelete, setTherapistToDelete] = useState(null)
   const [isDeletingTherapist, setIsDeletingTherapist] = useState(false)
   const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const { toast } = useToast()
 
   const debouncedFetchTherapists = useCallback(
@@ -244,43 +245,39 @@ export default function TherapistsManagement() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <div className="hidden md:flex md:w-64 md:flex-col">
-        <AdminSidebar />
-      </div>
-      <div className="flex-1">
-        <header className="bg-white shadow-sm border-b">
+      <AdminSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <div className="flex-1 flex flex-col">
+        <header className="sticky top-0 z-10 bg-white shadow-sm border-b">
           <div className="flex h-16 items-center justify-between px-4">
-            <h2 className="text-xl font-bold">Therapist Management</h2>
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon">
-                <Bell className="h-5 w-5" />
-              </Button>
-              <Avatar>
-                <AvatarImage src="/placeholder.svg?height=32&width=32" alt="Admin" />
-                <AvatarFallback>AD</AvatarFallback>
-              </Avatar>
+            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsSidebarOpen(true)}>
+                <Menu className="h-6 w-6" /><span className="sr-only">Open sidebar</span>
+            </Button>
+            <div className="md:hidden flex-1"></div>
+            <h2 className="text-xl font-bold hidden md:block">Therapist Management</h2>
+            <div className="flex items-center gap-4 ml-auto">
+              <Button variant="ghost" size="icon"><Bell className="h-5 w-5" /></Button>
+              <Avatar><AvatarImage src="/placeholder.svg?height=32&width=32" alt="Admin" /><AvatarFallback>AD</AvatarFallback></Avatar>
             </div>
           </div>
         </header>
-        <main className="p-6">
-          <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-            <h1 className="text-2xl font-bold text-gray-900">Therapists</h1>
-            <div className="mt-4 sm:mt-0 flex gap-3">
+        <main className="flex-1 p-4 md:p-6">
+          <div className="mb-6 md:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">Therapists</h1>
+            <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-2 sm:gap-3">
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
                 <Input
                   type="search"
                   placeholder="Search by name or email..."
-                  className="pl-8 w-full sm:w-[300px]"
+                  className="pl-8 w-full sm:w-[250px] md:w-[300px]"
                   value={searchQuery}
                   onChange={handleSearchChange}
                 />
               </div>
               <Dialog open={isAddingTherapist} onOpenChange={setIsAddingTherapist}>
                 <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Therapist
+                  <Button className="w-full sm:w-auto">
+                    <Plus className="mr-2 h-4 w-4" /> Add Therapist
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[600px]">
@@ -381,7 +378,7 @@ export default function TherapistsManagement() {
                   Error loading therapists: {error}
               </div>
           ) : therapists.length > 0 ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               {therapists.map((therapist) => (
                 <Card key={therapist._id} className="flex flex-col justify-between">
                   <div>

@@ -5,7 +5,7 @@ import { AdminSidebar } from "@/components/admin-sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Bell, Search, Shuffle, Loader2, Users, UserCheck } from "lucide-react"
+import { Bell, Search, Shuffle, Loader2, Users, UserCheck, Menu, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -22,6 +22,7 @@ export default function ReassignmentsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState(null)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const { toast } = useToast()
 
   // Fetch initial data (unassigned patients and available therapists)
@@ -104,25 +105,22 @@ export default function ReassignmentsPage() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <div className="hidden md:flex md:w-64 md:flex-col">
-        <AdminSidebar />
-      </div>
-      <div className="flex-1">
-        <header className="bg-white shadow-sm border-b">
+      <AdminSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <div className="flex-1 flex flex-col">
+        <header className="sticky top-0 z-10 bg-white shadow-sm border-b">
           <div className="flex h-16 items-center justify-between px-4">
-            <h2 className="text-xl font-bold">Patient Reassignment</h2>
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon">
-                <Bell className="h-5 w-5" />
-              </Button>
-              <Avatar>
-                <AvatarImage src="/placeholder.svg?height=32&width=32" alt="Admin" />
-                <AvatarFallback>AD</AvatarFallback>
-              </Avatar>
+            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsSidebarOpen(true)}>
+                <Menu className="h-6 w-6" /><span className="sr-only">Open sidebar</span>
+            </Button>
+            <div className="md:hidden flex-1"></div> 
+            <h2 className="text-xl font-bold hidden md:block">Patient Reassignment</h2>
+            <div className="flex items-center gap-4 ml-auto">
+              <Button variant="ghost" size="icon"><Bell className="h-5 w-5" /></Button>
+              <Avatar><AvatarImage src="/placeholder.svg?height=32&width=32" alt="Admin" /><AvatarFallback>AD</AvatarFallback></Avatar>
             </div>
           </div>
         </header>
-        <main className="p-6">
+        <main className="flex-1 p-4 md:p-6">
           <Card>
             <CardHeader>
               <CardTitle>Assign Therapists to Patients</CardTitle>
@@ -151,8 +149,8 @@ export default function ReassignmentsPage() {
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-lg font-medium mb-2">Unassigned Patients ({unassignedPatients.length})</h3>
-                    <div className="border rounded-md">
-                        <Table>
+                    <div className="border rounded-md overflow-x-auto">
+                        <Table className="min-w-[600px]">
                         <TableHeader>
                             <TableRow>
                             <TableHead className="w-[100px]">Select</TableHead>

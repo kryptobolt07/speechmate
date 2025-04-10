@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { AdminSidebar } from "@/components/admin-sidebar"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Bell, Building, Edit, MapPin, Plus, Trash2, Users, Loader2 } from "lucide-react"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Loader2, Plus, Edit, Trash2, Users, Hospital, Bell, Menu, X } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Dialog,
@@ -15,24 +15,33 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
+import Link from "next/link"
 
 export default function HospitalsManagement() {
   const [hospitals, setHospitals] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isAddingHospital, setIsAddingHospital] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isAddSubmitting, setIsAddSubmitting] = useState(false)
   const [newHospital, setNewHospital] = useState({
     name: "",
     slug: "",
   })
+  const [editingHospital, setEditingHospital] = useState(null)
+  const [isEditingHospital, setIsEditingHospital] = useState(false)
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false)
+  const [hospitalToDelete, setHospitalToDelete] = useState(null)
+  const [isDeletingHospital, setIsDeletingHospital] = useState(false)
+  const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const { toast } = useToast()
 
-  const fetchHospitals = async () => {
+  const fetchHospitals = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
@@ -47,30 +56,36 @@ export default function HospitalsManagement() {
     } catch (e) {
       console.error("Failed to fetch hospitals:", e)
       setError(e.message)
+      setHospitals([])
       toast({ variant: "destructive", title: "Error", description: `Could not fetch hospitals: ${e.message}` })
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [toast])
 
   useEffect(() => {
     fetchHospitals()
-  }, [])
+  }, [fetchHospitals])
 
   const handleNewHospitalChange = (field, value) => {
-    setNewHospital({
-      ...newHospital,
-      [field]: value,
-    })
+    let updatedValue = value;
+    if (field === 'slug') {
+        updatedValue = value.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    }
+    setNewHospital({ ...newHospital, [field]: updatedValue });
+    if (field === 'name' && !newHospital.slug) {
+        const slugValue = value.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        setNewHospital(prev => ({ ...prev, slug: slugValue }));
+    }
   }
 
   const handleAddHospital = async () => {
     if (!newHospital.name || !newHospital.slug) {
-      toast({ variant: "destructive", title: "Missing information", description: "Please provide both a Name and a Slug." })
+      toast({ variant: "destructive", title: "Missing Information", description: "Hospital Name and Slug are required." })
       return
     }
     
-    setIsSubmitting(true)
+    setIsAddSubmitting(true)
     try {
       const response = await fetch("/api/hospitals", {
           method: "POST",
@@ -86,7 +101,7 @@ export default function HospitalsManagement() {
 
       toast({
         title: "Hospital Added",
-        description: `${result.hospital.name} has been added successfully.`,
+        description: `${result.hospital.name} has been added.`,
       })
 
       setNewHospital({ name: "", slug: "" })
@@ -97,8 +112,16 @@ export default function HospitalsManagement() {
         console.error("Add hospital error:", error);
         toast({ variant: "destructive", title: "Error Adding Hospital", description: error.message });
     } finally {
-        setIsSubmitting(false);
+        setIsAddSubmitting(false);
     }
+  }
+
+  const openEditDialog = (hospital) => {
+    toast({ title: "Not Implemented", description: "Edit functionality coming soon!" })
+  }
+
+  const openDeleteDialog = (hospital) => {
+    toast({ title: "Not Implemented", description: "Delete functionality coming soon!" })
   }
 
   if (isLoading) {
@@ -120,17 +143,17 @@ export default function HospitalsManagement() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <div className="hidden md:flex md:w-64 md:flex-col">
-        <AdminSidebar />
-      </div>
-      <div className="flex-1">
-        <header className="bg-white shadow-sm border-b">
+      <AdminSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <div className="flex-1 flex flex-col">
+        <header className="sticky top-0 z-10 bg-white shadow-sm border-b">
           <div className="flex h-16 items-center justify-between px-4">
-            <h2 className="text-xl font-bold">Hospital Management</h2>
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon">
-                <Bell className="h-5 w-5" />
-              </Button>
+            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsSidebarOpen(true)}>
+                <Menu className="h-6 w-6" /><span className="sr-only">Open sidebar</span>
+            </Button>
+            <div className="md:hidden flex-1"></div> 
+            <h2 className="text-xl font-bold hidden md:block">Hospital Management</h2>
+            <div className="flex items-center gap-4 ml-auto">
+              <Button variant="ghost" size="icon"><Bell className="h-5 w-5" /></Button>
               <Avatar>
                 <AvatarImage src="/placeholder.svg?height=32&width=32" alt="Admin" />
                 <AvatarFallback>AD</AvatarFallback>
@@ -138,13 +161,13 @@ export default function HospitalsManagement() {
             </div>
           </div>
         </header>
-        <main className="p-6">
+        <main className="flex-1 p-4 md:p-6">
           <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <h1 className="text-2xl font-bold text-gray-900">Hospitals & Locations</h1>
             <div className="mt-4 sm:mt-0">
               <Dialog open={isAddingHospital} onOpenChange={setIsAddingHospital}>
                 <DialogTrigger asChild>
-                  <Button>
+                  <Button className="w-full sm:w-auto">
                     <Plus className="mr-2 h-4 w-4" />
                     Add Hospital
                   </Button>
@@ -180,11 +203,11 @@ export default function HospitalsManagement() {
                      </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAddingHospital(false)} disabled={isSubmitting}>
+                    <Button variant="outline" onClick={() => setIsAddingHospital(false)} disabled={isAddSubmitting}>
                       Cancel
                     </Button>
-                    <Button onClick={handleAddHospital} disabled={isSubmitting}>
-                      {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    <Button onClick={handleAddHospital} disabled={isAddSubmitting}>
+                      {isAddSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       Add Hospital
                     </Button>
                   </DialogFooter>
@@ -203,7 +226,7 @@ export default function HospitalsManagement() {
                           <CardTitle className="text-xl">{hospital.name}</CardTitle>
                           <CardDescription>Slug: {hospital.slug}</CardDescription>
                         </div>
-                        <Building className="h-8 w-8 text-gray-400" />
+                        <Hospital className="h-8 w-8 text-gray-400" />
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -224,12 +247,22 @@ export default function HospitalsManagement() {
                         </div>
                       </div>
                     </CardContent>
+                    <CardFooter className="border-t pt-4 mt-4 flex justify-end gap-2">
+                      <Button variant="outline" size="icon" onClick={() => openEditDialog(hospital)}>
+                        <Edit className="h-4 w-4" />
+                        <span className="sr-only">Edit Hospital</span>
+                      </Button>
+                      <Button variant="destructive" size="icon" onClick={() => openDeleteDialog(hospital)}>
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Delete Hospital</span>
+                      </Button>
+                    </CardFooter>
                   </Card>
                 ))}
               </div>
             ) : (
                  <div className="text-center py-12">
-                     <Building className="mx-auto h-12 w-12 text-gray-400" />
+                     <Hospital className="mx-auto h-12 w-12 text-gray-400" />
                      <h3 className="mt-4 text-lg font-medium">No Hospitals Found</h3>
                      <p className="mt-2 text-sm text-gray-500">Add the first hospital location using the button above.</p>
                  </div>

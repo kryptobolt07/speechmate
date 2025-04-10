@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Bell, Download, Users, Loader2, CalendarCheck, CalendarClock } from "lucide-react"
+import { Bell, Download, Users, Loader2, CalendarCheck, CalendarClock, Menu } from "lucide-react"
 import Link from "next/link"
 
 // Map API stat names to icons (optional, for cleaner rendering)
@@ -21,6 +21,7 @@ export default function AdminDashboard() {
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false) // State for mobile sidebar
 
   // Fetch data on component mount
   useEffect(() => {
@@ -95,14 +96,22 @@ export default function AdminDashboard() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <div className="hidden md:flex md:w-64 md:flex-col">
-        <AdminSidebar />
-      </div>
-      <div className="flex-1">
-        <header className="bg-white shadow-sm border-b">
+      <AdminSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <div className="flex-1 flex flex-col">
+        <header className="sticky top-0 z-10 bg-white shadow-sm border-b">
           <div className="flex h-16 items-center justify-between px-4">
-            <h2 className="text-xl font-bold">Admin Dashboard</h2>
-            <div className="flex items-center gap-4">
+            <Button 
+                variant="ghost" 
+                size="icon" 
+                className="md:hidden" 
+                onClick={() => setIsSidebarOpen(true)}
+            >
+                <Menu className="h-6 w-6" />
+                <span className="sr-only">Open sidebar</span>
+            </Button>
+            <div className="md:hidden flex-1"></div>
+            <h2 className="text-xl font-bold hidden md:block">Admin Dashboard</h2>
+            <div className="flex items-center gap-4 ml-auto">
               <Button variant="ghost" size="icon">
                 <Bell className="h-5 w-5" />
               </Button>
@@ -113,16 +122,14 @@ export default function AdminDashboard() {
             </div>
           </div>
         </header>
-        <main className="p-6">
-          <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-            <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
-            <div className="mt-4 sm:mt-0 flex gap-3">
-            </div>
+        <main className="flex-1 p-4 md:p-6">
+          <div className="mb-6 md:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">Dashboard Overview</h1>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:gap-6 grid-cols-2 lg:grid-cols-4">
             {statsData.map((stat, index) => {
-              const IconComponent = StatIcons[stat.icon] || Users; // Fallback to Users icon
+              const IconComponent = StatIcons[stat.icon] || Users;
               return (
                 <Card key={index}>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -137,8 +144,8 @@ export default function AdminDashboard() {
             })}
           </div>
 
-          <div className="mt-8 grid gap-6 md:grid-cols-3">
-            <Card className="md:col-span-2">
+          <div className="mt-6 md:mt-8 grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-3">
+            <Card className="lg:col-span-2">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -149,7 +156,7 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm min-w-[600px]">
                     <thead>
                       <tr className="border-b">
                         <th className="py-3 text-left font-medium">Patient</th>
@@ -215,7 +222,7 @@ export default function AdminDashboard() {
             </Card>
           </div>
 
-          <div className="mt-8">
+          <div className="mt-6 md:mt-8">
             <Card>
               <CardHeader>
                 <CardTitle>Recent Reassignments</CardTitle>
