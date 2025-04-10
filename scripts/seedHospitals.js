@@ -2,8 +2,8 @@
 require('dotenv').config({ path: '../.env' }); // Load .env file from parent directory
 const mongoose = require('mongoose');
 
-// Need to adjust the path relative to this script file
-const Hospital = require('../models/Hospital'); 
+// Access the .default property for CommonJS require of ES Module
+const Hospital = require('../models/Hospital').default; 
 
 const hospitalsToSeed = [
   { name: "Downtown Medical Center", slug: "downtown" },
