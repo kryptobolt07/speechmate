@@ -127,8 +127,8 @@ export default function PatientDashboard() {
             {/* Use fetched patient name */}
             <h1 className="text-2xl font-bold text-gray-900">Welcome, {patientName.split(" ")[0]}</h1>
             <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-3">
-              {/* Links point relative to /patient/dashboard */}
-              <Link href="/patient/book">
+              {/* Links point relative to /patient/dashboard - Corrected Link */}
+              <Link href="/patient/book"> {/* Changed from /dashboard/patient/book */}
                 <Button className="w-full sm:w-auto">
                   <Plus className="mr-2 h-4 w-4" />
                   Book New Appointment

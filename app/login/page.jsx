@@ -36,16 +36,16 @@ export default function LoginPage() {
 
       const data = await response.json()
 
-      // Store the JWT token
-      localStorage.setItem("token", data.token)
-
       // Redirect based on role
       if (data.role === "patient") {
-        router.push("/dashboard/patient")
+        router.push("/patient/dashboard")
       } else if (data.role === "therapist") {
-        router.push("/dashboard/therapist")
+        router.push("/therapist/dashboard")
       } else if (data.role === "admin") {
-        router.push("/dashboard/admin")
+        router.push("/admin/dashboard")
+      } else {
+        console.warn("Unknown user role received:", data.role);
+        router.push("/");
       }
 
       toast({
