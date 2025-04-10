@@ -8,37 +8,47 @@ export async function GET(request) {
   try {
     await dbConnect()
 
-    // --- Authentication Simulation --- 
-    // In a real app, verify JWT token and extract userId
-    const authHeader = request.headers.get("Authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // Get user payload injected by middleware
+    const userPayloadHeader = request.headers.get('x-user-payload')
+    if (!userPayloadHeader) {
+        // This should technically not happen if middleware is configured correctly
+        console.error("User payload missing from request headers.")
+        return NextResponse.json({ error: "Authentication data missing" }, { status: 500 })
     }
 
-    const mockToken = authHeader.split(" ")[1]
-    const tokenParts = mockToken.split("-")
-    // Assuming token format: mock-jwt-token-${userId}-${timestamp}
-    if (tokenParts.length < 4 || tokenParts[0] !== "mock" || tokenParts[1] !== "jwt") {
-        return NextResponse.json({ error: "Invalid token format" }, { status: 401 })
+    let userPayload
+    try {
+        userPayload = JSON.parse(userPayloadHeader)
+    } catch (e) {
+        console.error("Failed to parse user payload header:", e)
+        return NextResponse.json({ error: "Invalid authentication data" }, { status: 500 })
     }
-    const userId = tokenParts[3] 
-    // --- End Authentication Simulation ---
+
+    const { userId, role } = userPayload
 
     if (!userId) {
-       return NextResponse.json({ error: "Unauthorized - User ID missing" }, { status: 401 })
+        // Should also not happen if middleware and token generation are correct
+        console.error("User ID missing from payload.")
+       return NextResponse.json({ error: "Unauthorized - User ID missing from token" }, { status: 401 })
     }
 
-    // Fetch the patient data from the database
-    // Exclude password field explicitly
+    // Optional: Verify the role if needed for this specific endpoint
+    if (role !== 'patient') {
+      return NextResponse.json({ error: "Forbidden - Insufficient role" }, { status: 403 })
+    }
+
+    // Fetch the patient data from the database using the verified userId
     const patient = await User.findById(userId).select("-password")
 
     if (!patient) {
-      return NextResponse.json({ error: "Patient not found" }, { status: 404 })
+        // This might happen if the user was deleted after the token was issued
+       return NextResponse.json({ error: "Patient not found" }, { status: 404 })
     }
 
-    // Ensure the fetched user is actually a patient
+    // Ensure the fetched user's role matches (redundant check here, but safe)
     if (patient.role !== 'patient') {
-        return NextResponse.json({ error: "Forbidden - User is not a patient" }, { status: 403 })
+        console.warn(`Mismatch: Token role '${role}' vs DB role '${patient.role}' for user ${userId}`)
+        return NextResponse.json({ error: "Forbidden - Role mismatch" }, { status: 403 })
     }
 
     // In a real app, you might populate related data here:

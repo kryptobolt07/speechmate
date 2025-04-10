@@ -83,23 +83,60 @@ export default function SignupPage() {
       return
     }
 
+    // Basic check if location is selected (assuming it maps to hospitalId)
+    if (!formData.location) {
+      toast({
+        variant: "destructive",
+        title: "Missing information",
+        description: "Please select a preferred hospital location.",
+      })
+      // Optionally force user back to step 1
+      // setStep(1);
+      return
+    }
+
     setIsLoading(true)
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // Construct payload for the API
+      const payload = {
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        email: formData.email,
+        password: formData.password,
+        phone: formData.phone,
+        hospitalId: formData.location, // Assuming location value is the hospitalId
+      }
 
-      toast({
-        title: "Account created",
-        description: "Welcome to Speech Mate! You can now log in.",
+      // Make the API call to the registration endpoint
+      const response = await fetch("/api/patients/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       })
 
-      router.push("/patient/dashboard")
+      const data = await response.json()
+
+      if (!response.ok) {
+        // Use error message from API if available, otherwise generic message
+        throw new Error(data.error || "Sign up failed")
+      }
+
+      // Handle success
+      toast({
+        title: "Account created successfully!",
+        description: "Please log in with your new credentials.",
+      })
+
+      router.push("/login") // Redirect to login page after successful signup
+
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Sign up failed",
-        description: "There was a problem creating your account.",
+        // Display the error message from the API or the catch block
+        description: error.message || "There was a problem creating your account. Please try again.",
       })
     } finally {
       setIsLoading(false)
