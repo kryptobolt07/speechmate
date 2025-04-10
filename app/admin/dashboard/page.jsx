@@ -1,81 +1,82 @@
+'use client' // Make this a client component
+
+import { useState, useEffect } from "react" // Import hooks
 import { AdminSidebar } from "@/components/admin-sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Bell, Download, Users } from "lucide-react"
+import { Bell, Download, Users, Loader2 } from "lucide-react"
 import Link from "next/link"
 
 export default function AdminDashboard() {
-  // Mock data
-  const stats = [
-    {
-      title: "Total Therapists",
-      value: "24",
-      description: "Active therapists",
-      change: "+2 this month",
-    },
-    {
-      title: "Active Patients",
-      value: "1,248",
-      description: "Registered patients",
-      change: "+86 this month",
-    },
-    {
-      title: "Appointments Today",
-      value: "42",
-      description: "Across all locations",
-      change: "12 completed",
-    },
-    {
-      title: "Average Rating",
-      value: "4.7",
-      description: "From patient reviews",
-      change: "+0.2 since last month",
-    },
-  ]
+  // State for summary data, loading, and errors
+  const [summary, setSummary] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  const recentAppointments = [
-    {
-      id: 1,
-      patient: "John Doe",
-      therapist: "Dr. Sarah Johnson",
-      time: "10:00 AM",
-      hospital: "Downtown Medical Center",
-      status: "completed",
-    },
-    {
-      id: 2,
-      patient: "Emma Wilson",
-      therapist: "Dr. Michael Chen",
-      time: "11:30 AM",
-      hospital: "North Valley Hospital",
-      status: "in progress",
-    },
-    {
-      id: 3,
-      patient: "Oliver Taylor",
-      therapist: "Dr. Lisa Rodriguez",
-      time: "1:00 PM",
-      hospital: "East Side Clinic",
-      status: "upcoming",
-    },
-    {
-      id: 4,
-      patient: "Sophia Garcia",
-      therapist: "Dr. James Wilson",
-      time: "2:15 PM",
-      hospital: "West End Health Center",
-      status: "upcoming",
-    },
-  ]
+  // Fetch data on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        // TODO: Add authentication headers if needed
+        const response = await fetch("/api/admin/summary")
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        const data = await response.json()
+        setSummary(data)
+      } catch (e) {
+        console.error("Failed to fetch admin summary:", e)
+        setError(e.message)
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  const hospitals = [
-    { name: "Downtown Medical Center", therapists: 8, patients: 412 },
-    { name: "North Valley Hospital", therapists: 6, patients: 287 },
-    { name: "East Side Clinic", therapists: 5, patients: 203 },
-    { name: "West End Health Center", therapists: 5, patients: 346 },
-  ]
+    fetchData()
+  }, []) // Empty dependency array ensures this runs only once on mount
+
+  // Handle Loading State
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+        <span className="ml-2">Loading dashboard...</span>
+      </div>
+    )
+  }
+
+  // Handle Error State
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <p className="text-red-600">Error loading dashboard: {error}</p>
+      </div>
+    )
+  }
+
+  // Handle case where summary data is missing (shouldn't happen if no error)
+  if (!summary) {
+     return (
+       <div className="flex min-h-screen items-center justify-center bg-gray-50">
+         <p className="text-gray-600">No dashboard data available.</p>
+       </div>
+     )
+  }
+
+  // Extract data for easier use (using optional chaining for safety)
+  const statsData = [
+      { title: "Total Therapists", value: summary.stats?.totalTherapists ?? 'N/A', description: "Active therapists", change: `+${summary.stats?.newTherapistsThisMonth ?? 'N/A'} this month` },
+      { title: "Active Patients", value: summary.stats?.activePatients?.toLocaleString() ?? 'N/A', description: "Registered patients", change: `+${summary.stats?.newPatientsThisMonth ?? 'N/A'} this month` },
+      { title: "Appointments Today", value: summary.stats?.appointmentsToday ?? 'N/A', description: "Across all locations", change: `${summary.stats?.completedToday ?? 'N/A'} completed` },
+      { title: "Average Rating", value: summary.stats?.averageRating ?? 'N/A', description: "From patient reviews", change: "" }, // No change data in mock
+  ];
+  const recentAppointments = summary.recentAppointments ?? [];
+  const hospitals = summary.hospitals ?? [];
+  const totalTherapistsForCalc = summary.stats?.totalTherapists || 1; // Avoid division by zero
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -109,7 +110,7 @@ export default function AdminDashboard() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {stats.map((stat, index) => (
+            {statsData.map((stat, index) => (
               <Card key={index}>
                 <CardHeader className="pb-2">
                   <CardTitle>{stat.title}</CardTitle>
@@ -151,31 +152,35 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {recentAppointments.map((appointment) => (
-                        <tr key={appointment.id} className="border-b">
-                          <td className="py-3">{appointment.patient}</td>
-                          <td className="py-3">{appointment.therapist}</td>
-                          <td className="py-3">{appointment.time}</td>
-                          <td className="py-3">{appointment.hospital}</td>
-                          <td className="py-3">
-                            <Badge
-                              variant={
-                                appointment.status === "completed"
-                                  ? "success"
+                      {recentAppointments.length > 0 ? (
+                        recentAppointments.map((appointment) => (
+                          <tr key={appointment.id} className="border-b">
+                            <td className="py-3">{appointment.patient}</td>
+                            <td className="py-3">{appointment.therapist}</td>
+                            <td className="py-3">{appointment.time}</td>
+                            <td className="py-3">{appointment.hospital}</td>
+                            <td className="py-3">
+                              <Badge
+                                variant={
+                                  appointment.status === "completed"
+                                    ? "success"
+                                    : appointment.status === "in progress"
+                                      ? "default"
+                                      : "outline"
+                                }
+                              >
+                                {appointment.status === "completed"
+                                  ? "Completed"
                                   : appointment.status === "in progress"
-                                    ? "default"
-                                    : "outline"
-                              }
-                            >
-                              {appointment.status === "completed"
-                                ? "Completed"
-                                : appointment.status === "in progress"
-                                  ? "In Progress"
-                                  : "Upcoming"}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))}
+                                    ? "In Progress"
+                                    : "Upcoming"}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr><td colSpan="5" className="py-4 text-center text-gray-500">No recent appointments found.</td></tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -189,24 +194,28 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {hospitals.map((hospital, index) => (
-                    <div key={index} className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center">
-                          <Users className="h-4 w-4 mr-2 text-gray-500" />
-                          <span className="text-sm font-medium">{hospital.name}</span>
+                  {hospitals.length > 0 ? (
+                    hospitals.map((hospital, index) => (
+                      <div key={index} className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center">
+                            <Users className="h-4 w-4 mr-2 text-gray-500" />
+                            <span className="text-sm font-medium">{hospital.name}</span>
+                          </div>
+                          <span className="text-sm">{hospital.therapists} therapists</span>
                         </div>
-                        <span className="text-sm">{hospital.therapists} therapists</span>
+                        <div className="h-2 w-full rounded-full bg-gray-200">
+                          <div
+                            className="h-2 rounded-full bg-teal-500"
+                            style={{ width: `${(hospital.therapists / totalTherapistsForCalc) * 100}%` }}
+                          ></div>
+                        </div>
+                        <p className="text-xs text-gray-500">{hospital.patients} active patients</p>
                       </div>
-                      <div className="h-2 w-full rounded-full bg-gray-200">
-                        <div
-                          className="h-2 rounded-full bg-teal-500"
-                          style={{ width: `${(hospital.therapists / 24) * 100}%` }}
-                        ></div>
-                      </div>
-                      <p className="text-xs text-gray-500">{hospital.patients} active patients</p>
-                    </div>
-                  ))}
+                    ))
+                    ) : (
+                       <p className="text-center text-gray-500">No hospital data found.</p>
+                    )}
                 </div>
               </CardContent>
             </Card>
@@ -220,30 +229,25 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="rounded-lg border p-3">
-                    <div className="flex justify-between">
-                      <h3 className="font-medium">Patient: William Johnson</h3>
-                      <span className="text-xs text-gray-500">May 8, 2025</span>
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Reassigned from <span className="font-medium">Dr. Sarah Johnson</span> to{" "}
-                      <span className="font-medium">Dr. Michael Chen</span>
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Reason: Therapist specialization better matches patient needs
-                    </p>
-                  </div>
-                  <div className="rounded-lg border p-3">
-                    <div className="flex justify-between">
-                      <h3 className="font-medium">Patient: Olivia Parker</h3>
-                      <span className="text-xs text-gray-500">May 6, 2025</span>
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Reassigned from <span className="font-medium">Dr. James Wilson</span> to{" "}
-                      <span className="font-medium">Dr. Lisa Rodriguez</span>
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">Reason: Patient requested female therapist</p>
-                  </div>
+                  {summary.recentReassignments?.length > 0 ? (
+                    summary.recentReassignments.map((reassignment, index) => (
+                      <div key={index} className="rounded-lg border p-3">
+                        <div className="flex justify-between">
+                          <h3 className="font-medium">Patient: {reassignment.patient}</h3>
+                          <span className="text-xs text-gray-500">{new Date(reassignment.date).toLocaleDateString()}</span>
+                        </div>
+                        <p className="text-sm text-gray-500 mt-1">
+                          Reassigned from <span className="font-medium">{reassignment.fromTherapist}</span> to{" "}
+                          <span className="font-medium">{reassignment.toTherapist}</span>
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Reason: {reassignment.reason}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                     <p className="text-center text-gray-500">No recent reassignments found.</p>
+                  )}
                 </div>
               </CardContent>
             </Card>

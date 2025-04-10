@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
+import dbConnect from "@/lib/dbConnect"
+import User from "@/models/User"
+import Hospital from "@/models/Hospital"
 
-// Mock admin summary data
-const adminSummary = {
+// Mock admin summary data - some parts will be replaced
+const partialAdminSummary = {
   stats: {
-    totalTherapists: 24,
-    activePatients: 1248,
     appointmentsToday: 42,
     completedToday: 12,
     averageRating: 4.7,
@@ -45,12 +46,6 @@ const adminSummary = {
       status: "upcoming",
     },
   ],
-  hospitals: [
-    { name: "Downtown Medical Center", therapists: 8, patients: 412 },
-    { name: "North Valley Hospital", therapists: 6, patients: 287 },
-    { name: "East Side Clinic", therapists: 5, patients: 203 },
-    { name: "West End Health Center", therapists: 5, patients: 346 },
-  ],
   recentReassignments: [
     {
       patient: "William Johnson",
@@ -71,13 +66,44 @@ const adminSummary = {
 
 export async function GET(request) {
   try {
-    // In a real app, you would:
-    // 1. Verify the JWT token from the Authorization header
-    // 2. Verify the user has admin role
-    // 3. Fetch the summary data from the database
+    await dbConnect()
+
+    // Fetch all hospitals
+    const hospitals = await Hospital.find().lean()
+
+    let totalTherapists = 0
+    let totalPatients = 0
+    const hospitalStats = []
+
+    // Calculate counts for each hospital
+    for (const hospital of hospitals) {
+      const therapistCount = await User.countDocuments({ role: 'therapist', hospitalId: hospital._id })
+      const patientCount = await User.countDocuments({ role: 'patient', hospitalId: hospital._id })
+
+      hospitalStats.push({
+        name: hospital.name,
+        therapists: therapistCount,
+        patients: patientCount,
+      })
+
+      totalTherapists += therapistCount
+      totalPatients += patientCount
+    }
+
+    // Construct the final summary object
+    const finalSummary = {
+      stats: {
+        ...partialAdminSummary.stats,
+        totalTherapists: totalTherapists,
+        activePatients: totalPatients,
+      },
+      recentAppointments: partialAdminSummary.recentAppointments,
+      hospitals: hospitalStats,
+      recentReassignments: partialAdminSummary.recentReassignments,
+    }
 
     // Mock successful response
-    return NextResponse.json(adminSummary)
+    return NextResponse.json(finalSummary)
   } catch (error) {
     console.error("Error fetching admin summary:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
