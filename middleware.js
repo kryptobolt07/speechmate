@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
-import { cookies } from 'next/headers' // Import cookies function
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -24,10 +23,8 @@ export async function middleware(request) {
       return NextResponse.next();
   }
 
-  // --- Get token from cookie --- 
-  const cookieStore = cookies() // Get the cookie store
-  const tokenCookie = cookieStore.get('token') // Get the specific cookie
-  const token = tokenCookie?.value;
+  // --- Get token from cookie (use request.cookies in middleware) --- 
+  const token = request.cookies.get('token')?.value;
 
   if (!JWT_SECRET) {
     console.error("JWT_SECRET not defined.");
@@ -105,6 +102,7 @@ export const config = {
     '/api/appointments/book',
     '/api/hospitals/:path*',
     '/api/therapists/available/:path*',
+    '/api/llm/:path*',
 
     // Protected Pages (require user to be logged in)
     '/patient/dashboard/:path*',

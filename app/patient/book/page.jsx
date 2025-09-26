@@ -51,45 +51,39 @@ export default function BookAppointment() {
       }
       setStep(2)
     } else if (step === 2) {
-      if (!formData.date) {
-        toast({ variant: "destructive", title: "Missing information", description: "Please select a preferred date." })
+      if (!formData.date || !selectedTime) {
+        toast({ variant: "destructive", title: "Missing information", description: "Please select a preferred date and enter a time." })
         return
       }
-      
+
       setIsLoadingCondition(true)
       setIsLoadingTherapists(true)
       setStep(3)
-      
-      let condition = null;
+
       try {
+        const formattedDate = format(formData.date, "yyyy-MM-dd")
         const classifyResponse = await fetch("/api/llm/classify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ description: formData.issueDescription }),
+          body: JSON.stringify({
+            description: formData.issueDescription,
+            hospital: formData.hospital,
+            appointmentDate: formattedDate,
+            appointmentTime: selectedTime,
+          }),
         })
         if (!classifyResponse.ok) {
           throw new Error("Failed to classify condition")
         }
         const classifyData = await classifyResponse.json()
-        condition = classifyData.condition
-        setClassifiedCondition(condition)
+        const { therapistId, therapist, condition } = classifyData
+        // Backend returns a single best therapist; render just that one for confirmation
+        const singleList = therapist ? [therapist] : []
+        setAvailableTherapists(singleList)
+        if (therapistId) setSelectedTherapistId(therapistId)
+        setClassifiedCondition(condition || null)
         setIsLoadingCondition(false)
-        
-        if (condition) {
-          const formattedDate = format(formData.date, "yyyy-MM-dd")
-          const therapistUrl = `/api/therapists/available?condition=${encodeURIComponent(
-            condition,
-          )}&hospital=${encodeURIComponent(formData.hospital)}&date=${formattedDate}`
-          
-          const therapistsResponse = await fetch(therapistUrl)
-          if (!therapistsResponse.ok) {
-            throw new Error("Failed to fetch available therapists")
-          }
-          const therapistsData = await therapistsResponse.json()
-          setAvailableTherapists(therapistsData)
-        }
         setIsLoadingTherapists(false)
-
       } catch (error) {
         console.error("Error during step 2->3 transition:", error)
         toast({ variant: "destructive", title: "Error", description: error.message || "Could not find therapists. Please try again." })
@@ -219,8 +213,8 @@ export default function BookAppointment() {
           {step === 2 && (
             <Card>
               <CardHeader>
-                <CardTitle>Step 2: Select preferred date</CardTitle>
-                <CardDescription>Choose a date that works best for you</CardDescription>
+                <CardTitle>Step 2: Select preferred date and time</CardTitle>
+                <CardDescription>Choose a date and enter a time that works best for you</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -252,6 +246,16 @@ export default function BookAppointment() {
                   </Popover>
                   <p className="text-xs text-gray-500 mt-1">Note: Weekends are not available for appointments</p>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="preferredTime">Preferred Time (e.g., 10:30 AM)</Label>
+                  <Input 
+                    id="preferredTime"
+                    type="text"
+                    placeholder="Enter preferred time"
+                    value={selectedTime}
+                    onChange={(e) => setSelectedTime(e.target.value)}
+                  />
+                </div>
               </CardContent>
               <CardFooter className="flex justify-between">
                 <Button variant="outline" onClick={handleBack}>
@@ -270,7 +274,7 @@ export default function BookAppointment() {
               <CardHeader>
                 <CardTitle>Step 3: Confirm your appointment</CardTitle>
                 <CardDescription>
-                    {isLoadingCondition ? "Analyzing condition..." : classifiedCondition ? `We suggest therapists specializing in: ${classifiedCondition}` : "Select a therapist and time."}
+                  {isLoadingTherapists ? "Finding available therapists..." : "Select a therapist and confirm your appointment."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -305,16 +309,7 @@ export default function BookAppointment() {
                       ))}
                     </RadioGroup>
 
-                    <div className="mt-6 space-y-2">
-                        <Label htmlFor="appointmentTime">Preferred Time (e.g., 10:30 AM)</Label>
-                        <Input 
-                            id="appointmentTime"
-                            type="text"
-                            placeholder="Enter preferred time" 
-                            value={selectedTime}
-                            onChange={(e) => setSelectedTime(e.target.value)}
-                        />
-                    </div>
+                    {/* Time already collected in Step 2 */}
                   </div>
                 ) : (
                    <p className="text-center text-gray-500 py-8">
