@@ -1,7 +1,7 @@
 'use client' // Convert to client component
 
 import { useEffect, useState } from "react" // Import hooks
-import { PatientSidebar } from "@/components/patient-sidebar"
+import { UnifiedSidebar, HamburgerButton } from "@/components/unified-sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -103,29 +103,24 @@ export default function PatientDashboard() {
   const patientInitials = patientName.split(" ").map((n) => n[0]).join("") || "P"
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* Assume PatientSidebar works like AdminSidebar (accepts props) */}
-      {/* If PatientSidebar doesn't exist or isn't needed on mobile, adjust this */}
-      {/* For now, applying the same pattern */}
-      <PatientSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+    <div className="min-h-screen bg-gray-50">
+      <UnifiedSidebar userType="patient" isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
       
-      <div className="flex-1 flex flex-col">
+      <div className="flex flex-col">
         <header className="sticky top-0 z-10 bg-white shadow-sm border-b">
           <div className="flex h-16 items-center justify-between px-4">
-            {/* Mobile Menu Button */} 
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsSidebarOpen(true)}>
-                <Menu className="h-6 w-6" /><span className="sr-only">Open sidebar</span>
-            </Button>
-            
-            <h2 className="text-lg font-bold md:text-xl">Patient Dashboard</h2>
+            <div className="flex items-center gap-4">
+              <HamburgerButton onClick={() => setIsSidebarOpen(true)} />
+              <h2 className="text-lg font-bold">Patient Dashboard</h2>
+            </div>
 
-            <div className="flex items-center gap-2 md:gap-4">
+            <div className="flex items-center gap-2">
               <Button variant="ghost" size="icon" className="hidden sm:flex">
                 <Bell className="h-5 w-5" />
               </Button>
-              <Avatar className="h-8 w-8 md:h-10 md:w-10">
+              <Avatar className="h-8 w-8">
                 <AvatarImage src="/placeholder.svg?height=32&width=32" alt={patientName} />
-                <AvatarFallback className="text-xs md:text-sm">{patientInitials}</AvatarFallback>
+                <AvatarFallback className="text-xs">{patientInitials}</AvatarFallback>
               </Avatar>
             </div>
           </div>

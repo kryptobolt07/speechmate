@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { BarChart3, Building, Calendar, Home, LogOut, Settings, Shuffle, Star, User, Users, LayoutDashboard, Hospital, X } from "lucide-react"
+import { BarChart3, Building, Calendar, Home, LogOut, Shuffle, Star, User, Users, LayoutDashboard, Hospital, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function AdminSidebar({ isOpen, setIsOpen }) {
@@ -57,12 +57,6 @@ export function AdminSidebar({ isOpen, setIsOpen }) {
       icon: User,
       href: "/admin/profile",
       active: pathname === "/admin/profile",
-    },
-    {
-      label: "Settings",
-      icon: Settings,
-      href: "/admin/settings",
-      active: pathname === "/admin/settings",
     },
   ]
 

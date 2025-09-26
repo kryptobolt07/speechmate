@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Calendar, ClipboardList, Home, LogOut, Settings, Star, User, Users, X } from "lucide-react"
+import { Calendar, ClipboardList, Home, LogOut, Star, User, Users, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function TherapistSidebar({ isOpen, setIsOpen }) {
@@ -45,12 +45,6 @@ export function TherapistSidebar({ isOpen, setIsOpen }) {
       icon: User,
       href: "/therapist/profile",
       active: pathname === "/therapist/profile",
-    },
-    {
-      label: "Settings",
-      icon: Settings,
-      href: "/therapist/settings",
-      active: pathname === "/therapist/settings",
     },
   ]
 

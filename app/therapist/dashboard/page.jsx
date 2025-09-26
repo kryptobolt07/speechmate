@@ -1,7 +1,7 @@
 'use client' // Convert to client component
 
 import { useEffect, useState } from "react" // Import hooks
-import { TherapistSidebar } from "@/components/therapist-sidebar"
+import { UnifiedSidebar, HamburgerButton } from "@/components/unified-sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -104,25 +104,24 @@ export default function TherapistDashboard() {
   const therapistInitials = therapistName.split(" ").map((n) => n[0]).join("") || "T"
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <TherapistSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+    <div className="min-h-screen bg-gray-50">
+      <UnifiedSidebar userType="therapist" isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
       
-      <div className="flex-1 flex flex-col">
+      <div className="flex flex-col">
         <header className="sticky top-0 z-10 bg-white shadow-sm border-b">
           <div className="flex h-16 items-center justify-between px-4">
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsSidebarOpen(true)}>
-                <Menu className="h-6 w-6" /><span className="sr-only">Open sidebar</span>
-            </Button>
+            <div className="flex items-center gap-4">
+              <HamburgerButton onClick={() => setIsSidebarOpen(true)} />
+              <h2 className="text-lg font-bold">Therapist Dashboard</h2>
+            </div>
             
-            <h2 className="text-lg font-bold md:text-xl">Therapist Dashboard</h2>
-            
-            <div className="flex items-center gap-2 md:gap-4">
+            <div className="flex items-center gap-2">
               <Button variant="ghost" size="icon" className="hidden sm:flex">
                 <Bell className="h-5 w-5" />
               </Button>
-              <Avatar className="h-8 w-8 md:h-10 md:w-10">
+              <Avatar className="h-8 w-8">
                 <AvatarImage src="/placeholder.svg?height=32&width=32" alt={therapistName} />
-                <AvatarFallback className="text-xs md:text-sm">{therapistInitials}</AvatarFallback>
+                <AvatarFallback className="text-xs">{therapistInitials}</AvatarFallback>
               </Avatar>
             </div>
           </div>

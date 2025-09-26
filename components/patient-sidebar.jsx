@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Calendar, Clock, Home, LogOut, Settings, Star, User, X } from "lucide-react"
+import { Calendar, Clock, Home, LogOut, Star, User, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function PatientSidebar({ isOpen, setIsOpen }) {
@@ -39,12 +39,6 @@ export function PatientSidebar({ isOpen, setIsOpen }) {
       icon: User,
       href: "/patient/profile",
       active: pathname === "/patient/profile",
-    },
-    {
-      label: "Settings",
-      icon: Settings,
-      href: "/patient/settings",
-      active: pathname === "/patient/settings",
     },
   ]
 
