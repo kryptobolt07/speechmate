@@ -1,11 +1,13 @@
 // scripts/seedAdmin.js
-require('dotenv').config({ path: '../.env' }); // Load .env variables from the root directory
-const mongoose = require('mongoose');
-const User = require('../models/User').default; // Adjust path based on your project structure AND access default export
+import dotenv from 'dotenv';
+import mongoose from 'mongoose';
+import User from '../models/User.js';
+
+dotenv.config({ path: '../.env' }); // Load .env variables from the root directory
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
-const ADMIN_EMAIL = 'admin@gmail.com';
+const ADMIN_EMAIL = 'admin@email.com';
 const ADMIN_PASSWORD = '@admin123'; // This will be hashed by the model
 const ADMIN_NAME = 'Admin User';
 

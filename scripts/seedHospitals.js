@@ -1,15 +1,18 @@
 // scripts/seedHospitals.js
-require('dotenv').config({ path: '../.env' }); // Load .env file from parent directory
-const mongoose = require('mongoose');
+import dotenv from 'dotenv'; // Load .env file from parent directory
+import mongoose from 'mongoose';
+import Hospital from '../models/Hospital.js'; 
 
-// Access the .default property for CommonJS require of ES Module
-const Hospital = require('../models/Hospital').default; 
+dotenv.config({ path: '../.env' });
 
 const hospitalsToSeed = [
-  { name: "Downtown Medical Center", slug: "downtown" },
-  { name: "North Valley Hospital", slug: "north" },
-  { name: "East Side Clinic", slug: "east" },
-  { name: "West End Health Center", slug: "west" }
+  { name: "All India Institute of Medical Sciences (AIIMS)", slug: "aiims" },
+  { name: "Apollo Hospitals - Speech Therapy Center", slug: "apollo" },
+  { name: "Fortis Healthcare - Speech & Hearing Department", slug: "fortis" },
+  { name: "Max Healthcare - Speech Language Pathology", slug: "max" },
+  { name: "Manipal Hospitals - Communication Disorders Unit", slug: "manipal" },
+  { name: "Kokilaben Dhirubhai Ambani Hospital - Speech Therapy", slug: "kokilaben" },
+  { name: "Medanta - The Medicity - Speech & Language Center", slug: "medanta" }
 ];
 
 async function seedDB() {
