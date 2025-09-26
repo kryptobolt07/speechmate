@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -24,8 +24,23 @@ export default function SignupPage() {
     agreeTerms: false,
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [hospitals, setHospitals] = useState([])
   const router = useRouter()
   const { toast } = useToast()
+
+  useEffect(() => {
+    const loadHospitals = async () => {
+      try {
+        const res = await fetch('/api/hospitals')
+        if (!res.ok) throw new Error('Failed to fetch hospitals')
+        const data = await res.json()
+        setHospitals(Array.isArray(data) ? data : [])
+      } catch (e) {
+        console.error('Hospitals load error', e)
+      }
+    }
+    loadHospitals()
+  }, [])
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -101,10 +116,10 @@ export default function SignupPage() {
       // Construct payload for the API
       const payload = {
         name: `${formData.firstName} ${formData.lastName}`.trim(),
-        email: formData.email,
+        email: (formData.email || '').trim().toLowerCase(),
         password: formData.password,
-        phone: formData.phone,
-        hospitalId: formData.location, // Assuming location value is the hospitalId
+        phone: (formData.phone || '').trim(),
+        hospitalId: (formData.location || '').trim().toLowerCase(), // send slug consistently
       }
 
       // Make the API call to the registration endpoint
@@ -116,11 +131,16 @@ export default function SignupPage() {
         body: JSON.stringify(payload),
       })
 
-      const data = await response.json()
+      let data
+      try {
+        data = await response.json()
+      } catch (_) {
+        data = {}
+      }
 
       if (!response.ok) {
-        // Use error message from API if available, otherwise generic message
-        throw new Error(data.error || "Sign up failed")
+        const message = data.error || (response.status === 409 ? 'Email already in use' : 'Sign up failed')
+        throw new Error(message)
       }
 
       // Handle success
@@ -135,7 +155,6 @@ export default function SignupPage() {
       toast({
         variant: "destructive",
         title: "Sign up failed",
-        // Display the error message from the API or the catch block
         description: error.message || "There was a problem creating your account. Please try again.",
       })
     } finally {
@@ -186,10 +205,9 @@ export default function SignupPage() {
                     <SelectValue placeholder="Select location" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="downtown">Downtown Medical Center</SelectItem>
-                    <SelectItem value="north">North Valley Hospital</SelectItem>
-                    <SelectItem value="east">East Side Clinic</SelectItem>
-                    <SelectItem value="west">West End Health Center</SelectItem>
+                    {hospitals.map((h) => (
+                      <SelectItem key={h._id} value={h.slug}>{h.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

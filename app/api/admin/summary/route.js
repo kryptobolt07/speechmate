@@ -4,66 +4,7 @@ import User from "@/models/User"
 import Hospital from "@/models/Hospital"
 import Appointment from "@/models/Appointment"
 
-// Mock admin summary data - some parts will be replaced
-const partialAdminSummary = {
-  stats: {
-    appointmentsToday: 42,
-    completedToday: 12,
-    averageRating: 4.7,
-    newPatientsThisMonth: 86,
-    newTherapistsThisMonth: 2,
-  },
-  recentAppointments: [
-    {
-      id: "1",
-      patient: "John Doe",
-      therapist: "Dr. Sarah Johnson",
-      time: "10:00 AM",
-      hospital: "Downtown Medical Center",
-      status: "completed",
-    },
-    {
-      id: "2",
-      patient: "Emma Wilson",
-      therapist: "Dr. Michael Chen",
-      time: "11:30 AM",
-      hospital: "North Valley Hospital",
-      status: "in progress",
-    },
-    {
-      id: "3",
-      patient: "Oliver Taylor",
-      therapist: "Dr. Lisa Rodriguez",
-      time: "1:00 PM",
-      hospital: "East Side Clinic",
-      status: "upcoming",
-    },
-    {
-      id: "4",
-      patient: "Sophia Garcia",
-      therapist: "Dr. James Wilson",
-      time: "2:15 PM",
-      hospital: "West End Health Center",
-      status: "upcoming",
-    },
-  ],
-  recentReassignments: [
-    {
-      patient: "William Johnson",
-      fromTherapist: "Dr. Sarah Johnson",
-      toTherapist: "Dr. Michael Chen",
-      date: "2025-05-08",
-      reason: "Therapist specialization better matches patient needs",
-    },
-    {
-      patient: "Olivia Parker",
-      fromTherapist: "Dr. James Wilson",
-      toTherapist: "Dr. Lisa Rodriguez",
-      date: "2025-05-06",
-      reason: "Patient requested female therapist",
-    },
-  ],
-}
+// Removed mock hospital names to avoid placeholders
 
 export async function GET(request) {
   try {

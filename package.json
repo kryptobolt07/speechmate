@@ -2,11 +2,19 @@
   "name": "my-v0-project",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "seed:reset": "node scripts/resetDB.js",
+    "seed:admin": "node scripts/seedAdmin.js",
+    "seed:patients": "node scripts/seedPatients.js",
+    "seed:therapists": "node scripts/seedTherapists.js",
+    "seed:hospitals": "node scripts/seedHospitals.js",
+    "seed:all": "node scripts/seedAll.js",
+    "clear:therapists": "node scripts/clearTherapists.js"
   },
   "dependencies": {
     "@google/genai": "^1.20.0",

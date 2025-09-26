@@ -50,11 +50,26 @@ export default function PatientProfile() {
 
   const handleSave = async () => {
     try {
-      // TODO: Implement profile update API
-      console.log('Saving profile:', formData)
+      const response = await fetch('/api/patients/me/update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update profile')
+      }
+      
+      const updatedPatient = await response.json()
+      setPatient(updatedPatient)
       setEditing(false)
+      alert('Profile updated successfully')
     } catch (error) {
       console.error('Error saving profile:', error)
+      alert('Failed to update profile: ' + error.message)
     }
   }
 

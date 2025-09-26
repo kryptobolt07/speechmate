@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { AdminSidebar } from "@/components/admin-sidebar"
+import { UnifiedSidebar, HamburgerButton } from "@/components/unified-sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, Plus, Edit, Trash2, Users, Hospital, Bell, Menu, X } from "lucide-react"
@@ -117,11 +117,70 @@ export default function HospitalsManagement() {
   }
 
   const openEditDialog = (hospital) => {
-    toast({ title: "Not Implemented", description: "Edit functionality coming soon!" })
+    setEditingHospital({
+      _id: hospital._id,
+      name: hospital.name || "",
+      slug: hospital.slug || "",
+    })
+    setIsEditingHospital(true)
+  }
+
+  const handleEditHospitalChange = (field, value) => {
+    let updatedValue = value
+    if (field === 'slug') {
+      updatedValue = value.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    }
+    setEditingHospital({ ...editingHospital, [field]: updatedValue })
+  }
+
+  const handleUpdateHospital = async () => {
+    if (!editingHospital || !editingHospital._id || !editingHospital.name || !editingHospital.slug) {
+      toast({ variant: "destructive", title: "Missing Information", description: "Hospital Name and Slug are required." })
+      return
+    }
+    setIsEditSubmitting(true)
+    try {
+      const response = await fetch(`/api/hospitals/${editingHospital._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editingHospital.name, slug: editingHospital.slug })
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Failed to update hospital')
+      toast({ title: 'Hospital Updated', description: `${result.name} has been updated.` })
+      setIsEditingHospital(false)
+      setEditingHospital(null)
+      await fetchHospitals()
+    } catch (error) {
+      console.error('Edit hospital error:', error)
+      toast({ variant: 'destructive', title: 'Error Updating Hospital', description: error.message })
+    } finally {
+      setIsEditSubmitting(false)
+    }
   }
 
   const openDeleteDialog = (hospital) => {
-    toast({ title: "Not Implemented", description: "Delete functionality coming soon!" })
+    setHospitalToDelete(hospital)
+    setIsDeletingHospital(true)
+  }
+
+  const handleDeleteHospital = async () => {
+    if (!hospitalToDelete?._id) return
+    setIsDeleteSubmitting(true)
+    try {
+      const response = await fetch(`/api/hospitals/${hospitalToDelete._id}`, { method: 'DELETE' })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Failed to delete hospital')
+      toast({ title: 'Hospital Deleted', description: `${hospitalToDelete.name} has been removed.` })
+      setIsDeletingHospital(false)
+      setHospitalToDelete(null)
+      await fetchHospitals()
+    } catch (error) {
+      console.error('Delete hospital error:', error)
+      toast({ variant: 'destructive', title: 'Error Deleting Hospital', description: error.message })
+    } finally {
+      setIsDeleteSubmitting(false)
+    }
   }
 
   if (isLoading) {
@@ -142,21 +201,22 @@ export default function HospitalsManagement() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <AdminSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
-      <div className="flex-1 flex flex-col">
+    <div className="min-h-screen bg-gray-50">
+      <UnifiedSidebar userType="admin" isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <div className="flex flex-col">
         <header className="sticky top-0 z-10 bg-white shadow-sm border-b">
           <div className="flex h-16 items-center justify-between px-4">
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsSidebarOpen(true)}>
-                <Menu className="h-6 w-6" /><span className="sr-only">Open sidebar</span>
-            </Button>
-            <div className="md:hidden flex-1"></div> 
-            <h2 className="text-xl font-bold hidden md:block">Hospital Management</h2>
-            <div className="flex items-center gap-4 ml-auto">
-              <Button variant="ghost" size="icon"><Bell className="h-5 w-5" /></Button>
-              <Avatar>
+            <div className="flex items-center gap-4">
+              <HamburgerButton onClick={() => setIsSidebarOpen(true)} />
+              <h2 className="text-lg font-bold">Hospital Management</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" className="hidden sm:flex">
+                <Bell className="h-5 w-5" />
+              </Button>
+              <Avatar className="h-8 w-8">
                 <AvatarImage src="/placeholder.svg?height=32&width=32" alt="Admin" />
-                <AvatarFallback>AD</AvatarFallback>
+                <AvatarFallback className="text-xs">AD</AvatarFallback>
               </Avatar>
             </div>
           </div>
@@ -216,6 +276,48 @@ export default function HospitalsManagement() {
             </div>
           </div>
 
+          {/* Edit Hospital Dialog */}
+          <Dialog open={isEditingHospital} onOpenChange={setIsEditingHospital}>
+            <DialogContent className="sm:max-w-[600px]">
+              <DialogHeader>
+                <DialogTitle>Edit Hospital</DialogTitle>
+                <DialogDescription>Update the hospital or clinic location details.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-name">Hospital Name <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="edit-name"
+                      value={editingHospital?.name || ''}
+                      onChange={(e) => handleEditHospitalChange('name', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-slug">Slug <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="edit-slug"
+                      value={editingHospital?.slug || ''}
+                      onChange={(e) => handleEditHospitalChange('slug', e.target.value)}
+                      required
+                    />
+                    <p className="text-xs text-gray-500">Unique identifier (lowercase, no spaces).</p>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsEditingHospital(false)} disabled={isEditSubmitting}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdateHospital} disabled={isEditSubmitting}>
+                  {isEditSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           {hospitals.length > 0 ? (
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {hospitals.map((hospital) => (
@@ -267,6 +369,25 @@ export default function HospitalsManagement() {
                      <p className="mt-2 text-sm text-gray-500">Add the first hospital location using the button above.</p>
                  </div>
             )}
+          {/* Delete Confirmation */}
+          <AlertDialog open={isDeletingHospital} onOpenChange={setIsDeletingHospital}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Hospital</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently remove the hospital "{hospitalToDelete?.name}" and its associations.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleteSubmitting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteHospital} disabled={isDeleteSubmitting} className="bg-red-600 hover:bg-red-700">
+                  {isDeleteSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
         </main>
       </div>
     </div>

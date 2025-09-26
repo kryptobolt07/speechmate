@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { PatientSidebar } from "@/components/patient-sidebar"
+import { useState, useEffect } from "react"
+import { UnifiedSidebar, HamburgerButton } from "@/components/unified-sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -21,12 +21,14 @@ import { cn } from "@/lib/utils"
 
 export default function BookAppointment() {
   const [step, setStep] = useState(1)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [formData, setFormData] = useState({
     hospital: "",
     issueDescription: "",
     date: undefined,
   })
   const [classifiedCondition, setClassifiedCondition] = useState(null)
+  const [hospitals, setHospitals] = useState([])
   const [availableTherapists, setAvailableTherapists] = useState([])
   const [selectedTherapistId, setSelectedTherapistId] = useState(null)
   const [selectedTime, setSelectedTime] = useState("")
@@ -35,6 +37,20 @@ export default function BookAppointment() {
   const [isLoadingBooking, setIsLoadingBooking] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+
+  useEffect(() => {
+    const loadHospitals = async () => {
+      try {
+        const res = await fetch('/api/hospitals')
+        if (!res.ok) throw new Error('Failed to fetch hospitals')
+        const data = await res.json()
+        setHospitals(Array.isArray(data) ? data : [])
+      } catch (e) {
+        console.error('Hospitals load error', e)
+      }
+    }
+    loadHospitals()
+  }, [])
 
   const handleChange = (field, value) => {
     setFormData({
@@ -156,12 +172,20 @@ export default function BookAppointment() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <div className="hidden md:flex md:w-64 md:flex-col">
-        <PatientSidebar />
-      </div>
-      <div className="flex-1">
-        <main className="p-6 max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gray-50">
+      <UnifiedSidebar userType="patient" isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 bg-white shadow-sm border-b">
+          <div className="flex h-16 items-center justify-between px-4">
+            <div className="flex items-center gap-4">
+              <HamburgerButton onClick={() => setIsSidebarOpen(true)} />
+              <h2 className="text-lg font-bold">Book Appointment</h2>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 p-6 max-w-4xl mx-auto w-full">
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-gray-900">Book New Appointment</h1>
             <p className="text-gray-600 mt-1">Tell us about your needs and we'll match you with the right therapist</p>
@@ -189,10 +213,9 @@ export default function BookAppointment() {
                       <SelectValue placeholder="Select location" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="downtown">Downtown Medical Center</SelectItem>
-                      <SelectItem value="north">North Valley Hospital</SelectItem>
-                      <SelectItem value="east">East Side Clinic</SelectItem>
-                      <SelectItem value="west">West End Health Center</SelectItem>
+                      {hospitals.map((h) => (
+                        <SelectItem key={h._id} value={h.slug}>{h.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

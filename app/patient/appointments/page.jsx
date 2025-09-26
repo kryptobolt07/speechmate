@@ -4,13 +4,31 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Clock, MapPin, User, Plus, Filter, Search, Bell } from "lucide-react"
+import { Calendar, Clock, MapPin, User, Plus, Filter, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
 import { UnifiedSidebar, HamburgerButton } from "@/components/unified-sidebar"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function PatientAppointments() {
   const [appointments, setAppointments] = useState([])
@@ -18,6 +36,15 @@ export default function PatientAppointments() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isRescheduleOpen, setIsRescheduleOpen] = useState(false)
+  const [rescheduleAppointment, setRescheduleAppointment] = useState(null)
+  const [newDate, setNewDate] = useState("")
+  const [newTime, setNewTime] = useState("")
+  const [isRescheduling, setIsRescheduling] = useState(false)
+  const [isCancelOpen, setIsCancelOpen] = useState(false)
+  const [cancelAppointment, setCancelAppointment] = useState(null)
+  const [cancelReason, setCancelReason] = useState("")
+  const [isCancelling, setIsCancelling] = useState(false)
 
   useEffect(() => {
     fetchAppointments()
@@ -35,6 +62,59 @@ export default function PatientAppointments() {
       console.error('Error fetching appointments:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const openRescheduleDialog = (appointment) => {
+    setRescheduleAppointment(appointment)
+    setNewDate("")
+    setNewTime("")
+    setIsRescheduleOpen(true)
+  }
+
+  const submitReschedule = async () => {
+    if (!rescheduleAppointment || !newDate || !newTime) return
+    setIsRescheduling(true)
+    try {
+      const response = await fetch(`/api/appointments/${rescheduleAppointment.id}/reschedule`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointmentDate: newDate, appointmentTime: newTime, notes: 'Rescheduled by patient' })
+      })
+      if (!response.ok) throw new Error('Failed to reschedule appointment')
+      setIsRescheduleOpen(false)
+      setRescheduleAppointment(null)
+      await fetchAppointments()
+    } catch (error) {
+      console.error('Error rescheduling appointment:', error)
+    } finally {
+      setIsRescheduling(false)
+    }
+  }
+
+  const openCancelDialog = (appointment) => {
+    setCancelAppointment(appointment)
+    setCancelReason("")
+    setIsCancelOpen(true)
+  }
+
+  const submitCancel = async () => {
+    if (!cancelAppointment) return
+    setIsCancelling(true)
+    try {
+      const response = await fetch(`/api/appointments/${cancelAppointment.id}/cancel`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: cancelReason || 'No reason provided' })
+      })
+      if (!response.ok) throw new Error('Failed to cancel appointment')
+      setIsCancelOpen(false)
+      setCancelAppointment(null)
+      await fetchAppointments()
+    } catch (error) {
+      console.error('Error cancelling appointment:', error)
+    } finally {
+      setIsCancelling(false)
     }
   }
 
@@ -88,9 +168,6 @@ export default function PatientAppointments() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="hidden sm:flex">
-                <Bell className="h-5 w-5" />
-              </Button>
               <Avatar className="h-8 w-8">
                 <AvatarImage src="/placeholder.svg?height=32&width=32" alt="Patient" />
                 <AvatarFallback className="text-xs">P</AvatarFallback>
@@ -200,12 +277,21 @@ export default function PatientAppointments() {
                       
                       <div className="mt-4 sm:mt-0 sm:ml-4 flex flex-col sm:flex-row gap-2">
                         {appointment.status === 'pending' && (
-                          <Button variant="outline" size="sm">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => openCancelDialog(appointment)}
+                            className="text-red-600 hover:text-red-700"
+                          >
                             Cancel
                           </Button>
                         )}
                         {appointment.status === 'confirmed' && (
-                          <Button variant="outline" size="sm">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => openRescheduleDialog(appointment)}
+                          >
                             Reschedule
                           </Button>
                         )}
@@ -231,6 +317,51 @@ export default function PatientAppointments() {
           </Card>
         </TabsContent>
       </Tabs>
+          {/* Reschedule Dialog */}
+          <Dialog open={isRescheduleOpen} onOpenChange={setIsRescheduleOpen}>
+            <DialogContent className="sm:max-w-[480px]">
+              <DialogHeader>
+                <DialogTitle>Reschedule Appointment</DialogTitle>
+                <DialogDescription>
+                  Pick a new date and time for your appointment with {rescheduleAppointment?.therapistName}.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="new-date">New Date (YYYY-MM-DD)</Label>
+                  <Input id="new-date" value={newDate} onChange={(e) => setNewDate(e.target.value)} placeholder="2025-10-05" />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="new-time">New Time (e.g., 10:00 AM)</Label>
+                  <Input id="new-time" value={newTime} onChange={(e) => setNewTime(e.target.value)} placeholder="10:00 AM" />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsRescheduleOpen(false)} disabled={isRescheduling}>Cancel</Button>
+                <Button onClick={submitReschedule} disabled={isRescheduling}>{isRescheduling ? 'Rescheduling...' : 'Confirm'}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Cancel Dialog */}
+          <Dialog open={isCancelOpen} onOpenChange={setIsCancelOpen}>
+            <DialogContent className="sm:max-w-[480px]">
+              <DialogHeader>
+                <DialogTitle>Cancel Appointment</DialogTitle>
+                <DialogDescription>
+                  Provide an optional reason for cancelling your appointment with {cancelAppointment?.therapistName}.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-1">
+                <Label htmlFor="cancel-reason">Reason (optional)</Label>
+                <Input id="cancel-reason" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="Not feeling well" />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsCancelOpen(false)} disabled={isCancelling}>Back</Button>
+                <Button onClick={submitCancel} variant="destructive" disabled={isCancelling}>{isCancelling ? 'Cancelling...' : 'Confirm Cancel'}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </main>
       </div>
     </div>

@@ -6,11 +6,30 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, MapPin, User, Filter, Search, Eye, Edit, Trash2, Bell } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { UnifiedSidebar, HamburgerButton } from "@/components/unified-sidebar"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function AdminAppointments() {
   const [appointments, setAppointments] = useState([])
@@ -19,6 +38,13 @@ export default function AdminAppointments() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [hospitalFilter, setHospitalFilter] = useState("all")
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [editAppointment, setEditAppointment] = useState(null)
+  const [newStatus, setNewStatus] = useState("")
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [deleteAppointment, setDeleteAppointment] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     fetchAppointments()
@@ -36,6 +62,53 @@ export default function AdminAppointments() {
       console.error('Error fetching appointments:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const openEditDialog = (appointment) => {
+    setEditAppointment(appointment)
+    setNewStatus(appointment.status)
+    setIsEditOpen(true)
+  }
+
+  const saveEdit = async () => {
+    if (!editAppointment) return
+    setIsSavingEdit(true)
+    try {
+      const response = await fetch(`/api/appointments/${editAppointment.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      })
+      if (!response.ok) throw new Error('Failed to update appointment')
+      setIsEditOpen(false)
+      setEditAppointment(null)
+      await fetchAppointments()
+    } catch (error) {
+      console.error('Error updating appointment:', error)
+    } finally {
+      setIsSavingEdit(false)
+    }
+  }
+
+  const openDeleteDialog = (appointment) => {
+    setDeleteAppointment(appointment)
+    setIsDeleteOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteAppointment) return
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/appointments/${deleteAppointment.id}`, { method: 'DELETE' })
+      if (!response.ok) throw new Error('Failed to delete appointment')
+      setIsDeleteOpen(false)
+      setDeleteAppointment(null)
+      await fetchAppointments()
+    } catch (error) {
+      console.error('Error deleting appointment:', error)
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -232,10 +305,19 @@ export default function AdminAppointments() {
                           <Button variant="ghost" size="sm">
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => openEditDialog(appointment)}
+                          >
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => openDeleteDialog(appointment)}
+                          >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -248,6 +330,54 @@ export default function AdminAppointments() {
           )}
         </CardContent>
       </Card>
+          {/* Edit Dialog */}
+          <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+            <DialogContent className="sm:max-w-[480px]">
+              <DialogHeader>
+                <DialogTitle>Edit Appointment Status</DialogTitle>
+                <DialogDescription>Update the status of this appointment.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <Label>Status</Label>
+                <Select value={newStatus} onValueChange={setNewStatus}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                    <SelectItem value="no-show">No Show</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsEditOpen(false)} disabled={isSavingEdit}>Cancel</Button>
+                <Button onClick={saveEdit} disabled={isSavingEdit}>{isSavingEdit ? 'Saving...' : 'Save Changes'}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Delete Confirmation */}
+          <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Appointment</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete the appointment for
+                  {` ${deleteAppointment?.patientName || 'this patient'}`}.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
         </main>
       </div>
     </div>

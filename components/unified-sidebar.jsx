@@ -63,9 +63,22 @@ export function UnifiedSidebar({ userType, isOpen, setIsOpen }) {
   const routes = getRoutes()
   const isActive = (path) => pathname === path
 
-  const handleLogout = () => {
-    // TODO: Implement actual logout functionality
-    alert('Logout functionality to be implemented')
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+      })
+      
+      if (response.ok) {
+        // Redirect to login page
+        window.location.href = '/login'
+      } else {
+        alert('Logout failed. Please try again.')
+      }
+    } catch (error) {
+      console.error('Logout error:', error)
+      alert('Logout failed. Please try again.')
+    }
   }
 
   return (

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { PatientSidebar } from "@/components/patient-sidebar"
+import { UnifiedSidebar, HamburgerButton } from "@/components/unified-sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
@@ -15,6 +15,7 @@ export default function AddReview({ params }) {
   const [hoveredRating, setHoveredRating] = useState(0)
   const [feedback, setFeedback] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
 
@@ -75,12 +76,20 @@ export default function AddReview({ params }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <div className="hidden md:flex md:w-64 md:flex-col">
-        <PatientSidebar />
-      </div>
-      <div className="flex-1">
-        <main className="p-6 max-w-3xl mx-auto">
+    <div className="min-h-screen bg-gray-50">
+      <UnifiedSidebar userType="patient" isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 bg-white shadow-sm border-b">
+          <div className="flex h-16 items-center justify-between px-4">
+            <div className="flex items-center gap-4">
+              <HamburgerButton onClick={() => setIsSidebarOpen(true)} />
+              <h2 className="text-lg font-bold">Add Review</h2>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 p-6 max-w-3xl mx-auto w-full">
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-gray-900">Leave a Review</h1>
             <p className="text-gray-600 mt-1">Share your experience with your therapist</p>

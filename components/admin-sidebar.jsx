@@ -102,18 +102,9 @@ export function AdminSidebar({ isOpen, setIsOpen }) {
         ))}
       </nav>
       <div className="mt-auto border-t p-4">
-        {/* Settings link example */}
-        <Link
-          href="#" // Replace with actual settings path if needed
-          className="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
-        >
-          <Settings className="mr-3 h-5 w-5" />
-          Settings
-        </Link>
-        {/* Logout button example */}
         <button
             // TODO: Add logout functionality
-            className="mt-2 w-full flex items-center rounded-md px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+            className="w-full flex items-center rounded-md px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
             onClick={() => alert('Logout not implemented')}
         >
             <LogOut className="mr-3 h-5 w-5" />

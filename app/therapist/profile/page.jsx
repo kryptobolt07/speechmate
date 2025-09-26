@@ -53,11 +53,26 @@ export default function TherapistProfile() {
 
   const handleSave = async () => {
     try {
-      // TODO: Implement profile update API
-      console.log('Saving profile:', formData)
+      const response = await fetch('/api/therapists/me/update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update profile')
+      }
+      
+      const updatedTherapist = await response.json()
+      setTherapist(updatedTherapist)
       setEditing(false)
+      alert('Profile updated successfully')
     } catch (error) {
       console.error('Error saving profile:', error)
+      alert('Failed to update profile: ' + error.message)
     }
   }
 

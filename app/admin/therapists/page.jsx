@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { AdminSidebar } from "@/components/admin-sidebar"
+import { UnifiedSidebar, HamburgerButton } from "@/components/unified-sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -192,7 +192,7 @@ export default function TherapistsManagement() {
     }
     setIsEditSubmitting(true)
     try {
-        const response = await fetch(`/api/admin/therapists/${editingTherapist._id}`, {
+        const response = await fetch(`/api/therapists/${editingTherapist._id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -200,7 +200,10 @@ export default function TherapistsManagement() {
                 email: editingTherapist.email,
                 hospitalId: editingTherapist.hospitalId,
                 specialty: editingTherapist.specialty,
-                phone: editingTherapist.phone
+                phone: editingTherapist.phone,
+                experience: editingTherapist.experience,
+                bio: editingTherapist.bio,
+                address: editingTherapist.address
             }),
         });
         const result = await response.json();
@@ -226,7 +229,7 @@ export default function TherapistsManagement() {
     if (!therapistToDelete || !therapistToDelete._id) return;
     setIsDeleteSubmitting(true);
     try {
-      const response = await fetch(`/api/admin/therapists/${therapistToDelete._id}`, {
+      const response = await fetch(`/api/therapists/${therapistToDelete._id}`, {
         method: "DELETE",
       });
       const result = await response.json();
@@ -244,19 +247,23 @@ export default function TherapistsManagement() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <AdminSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
-      <div className="flex-1 flex flex-col">
+    <div className="min-h-screen bg-gray-50">
+      <UnifiedSidebar userType="admin" isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <div className="flex flex-col">
         <header className="sticky top-0 z-10 bg-white shadow-sm border-b">
           <div className="flex h-16 items-center justify-between px-4">
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsSidebarOpen(true)}>
-                <Menu className="h-6 w-6" /><span className="sr-only">Open sidebar</span>
-            </Button>
-            <div className="md:hidden flex-1"></div>
-            <h2 className="text-xl font-bold hidden md:block">Therapist Management</h2>
-            <div className="flex items-center gap-4 ml-auto">
-              <Button variant="ghost" size="icon"><Bell className="h-5 w-5" /></Button>
-              <Avatar><AvatarImage src="/placeholder.svg?height=32&width=32" alt="Admin" /><AvatarFallback>AD</AvatarFallback></Avatar>
+            <div className="flex items-center gap-4">
+              <HamburgerButton onClick={() => setIsSidebarOpen(true)} />
+              <h2 className="text-lg font-bold">Therapist Management</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" className="hidden sm:flex">
+                <Bell className="h-5 w-5" />
+              </Button>
+              <Avatar className="h-8 w-8">
+                <AvatarImage src="/placeholder.svg?height=32&width=32" alt="Admin" />
+                <AvatarFallback className="text-xs">AD</AvatarFallback>
+              </Avatar>
             </div>
           </div>
         </header>

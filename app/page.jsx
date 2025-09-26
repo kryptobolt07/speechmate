@@ -173,14 +173,14 @@ export default function Home() {
               Speech Mate
             </h1>
           </div>
-          <div className={`space-x-4 transition-all duration-700 delay-300 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10'}`}>
-            <Link href="/login">
-              <Button variant="outline" className="gap-2">
+          <div className={`flex flex-col sm:flex-row gap-2 sm:gap-4 w-full sm:w-auto max-w-xs sm:max-w-none transition-all duration-700 delay-300 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10'}`}>
+            <Link href="/login" className="w-full sm:w-auto">
+              <Button variant="outline" className="gap-2 w-full sm:w-auto">
                 <LogIn size={18} /> Login
               </Button>
             </Link>
-            <Link href="/signup">
-              <Button className="gap-2">
+            <Link href="/signup" className="w-full sm:w-auto">
+              <Button className="gap-2 w-full sm:w-auto">
                 <UserPlus size={18} /> Sign Up
               </Button>
             </Link>
@@ -200,21 +200,16 @@ export default function Home() {
                 A centralized platform connecting patients, therapists, and administrators for seamless therapy
                 management.
               </p>
-              <div className={`flex flex-col sm:flex-row gap-4 transition-all duration-700 delay-450 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-                <Link href="/signup">
+              <div className={`flex flex-col sm:flex-row gap-3 transition-all duration-700 delay-450 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+                <Link href="/signup" className="w-full sm:w-auto">
                   <Button size="lg" className="w-full sm:w-auto">
-                    Get Started as Patient
-                  </Button>
-                </Link>
-                <Link href="/login">
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                    Therapist Login
+                    Get Started
                   </Button>
                 </Link>
               </div>
             </div>
             <div className={`md:w-1/2 flex justify-center transition-all duration-1000 delay-500 ${isLoaded ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-20'}`}>
-              <div className="relative w-[500px] h-[400px] rounded-lg shadow-xl overflow-hidden">
+              <div className="relative w-full max-w-md h-64 sm:h-80 md:w-[500px] md:h-[400px] rounded-lg shadow-xl overflow-hidden">
                 <Image
                   src="/i5.jpg"
                   alt="Speech therapist working with a child on pronunciation"

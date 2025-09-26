@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Bell, Calendar, Clock, Plus, Loader2, Menu, X } from "lucide-react" // Added Menu, X
+import { Calendar, Clock, Plus, Loader2, Menu, X } from "lucide-react" // Removed Bell
 import Link from "next/link"
 import { useToast } from "@/components/ui/use-toast" // Ensure correct path for useToast
 
@@ -115,9 +115,6 @@ export default function PatientDashboard() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="hidden sm:flex">
-                <Bell className="h-5 w-5" />
-              </Button>
               <Avatar className="h-8 w-8">
                 <AvatarImage src="/placeholder.svg?height=32&width=32" alt={patientName} />
                 <AvatarFallback className="text-xs">{patientInitials}</AvatarFallback>

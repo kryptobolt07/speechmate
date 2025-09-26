@@ -37,6 +37,59 @@ export default function TherapistSchedule() {
     }
   }
 
+  const handleConfirmAppointment = async (appointmentId) => {
+    try {
+      const response = await fetch(`/api/appointments/${appointmentId}/confirm`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to confirm appointment')
+      }
+      
+      // Refresh schedule
+      await fetchSchedule()
+      alert('Appointment confirmed successfully')
+    } catch (error) {
+      console.error('Error confirming appointment:', error)
+      alert('Failed to confirm appointment')
+    }
+  }
+
+  const handleAddNotes = async (appointmentId) => {
+    const notes = prompt('Enter session notes:')
+    if (!notes) return
+    
+    try {
+      const response = await fetch(`/api/appointments/${appointmentId}/notes`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          therapistNotes: notes
+        }),
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to add notes')
+      }
+      
+      alert('Notes added successfully')
+    } catch (error) {
+      console.error('Error adding notes:', error)
+      alert('Failed to add notes')
+    }
+  }
+
+  const handleStartSession = (appointmentId) => {
+    // This would typically redirect to a session page or open a session modal
+    alert('Starting session... (This would open the session interface)')
+  }
+
   const todayAppointments = scheduleData?.todayAppointments || []
   const weekAppointments = scheduleData?.weekAppointments || []
 
@@ -210,16 +263,27 @@ export default function TherapistSchedule() {
                       
                       <div className="mt-4 sm:mt-0 sm:ml-4 flex flex-col sm:flex-row gap-2">
                         {appointment.status === 'confirmed' && (
-                          <Button size="sm">
+                          <Button 
+                            size="sm"
+                            onClick={() => handleStartSession(appointment.id)}
+                          >
                             Start Session
                           </Button>
                         )}
                         {appointment.status === 'pending' && (
-                          <Button variant="outline" size="sm">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleConfirmAppointment(appointment.id)}
+                          >
                             Confirm
                           </Button>
                         )}
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleAddNotes(appointment.id)}
+                        >
                           Add Notes
                         </Button>
                       </div>
