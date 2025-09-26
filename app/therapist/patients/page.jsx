@@ -8,12 +8,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { User, Calendar, Phone, Mail, Search, Filter } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { UnifiedSidebar, HamburgerButton } from "@/components/unified-sidebar"
+import { useToast } from "@/hooks/use-toast"
 
 export default function TherapistPatients() {
   const [patients, setPatients] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
     fetchPatients()
@@ -26,9 +30,14 @@ export default function TherapistPatients() {
         throw new Error('Failed to fetch patients')
       }
       const data = await response.json()
-      setPatients(data.assignedPatients || [])
+      setPatients(data.patients || [])
     } catch (error) {
       console.error('Error fetching patients:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch patients. Please try again.",
+      })
     } finally {
       setLoading(false)
     }
@@ -53,11 +62,24 @@ export default function TherapistPatients() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">My Patients</h1>
-        <p className="text-gray-600">Manage your assigned patients and their therapy progress</p>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <UnifiedSidebar userType="therapist" isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 bg-white shadow-sm border-b">
+          <div className="flex h-16 items-center justify-between px-4">
+            <div className="flex items-center gap-4">
+              <HamburgerButton onClick={() => setIsSidebarOpen(true)} />
+              <h2 className="text-lg font-bold">My Patients</h2>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 p-4 md:p-6">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">My Patients</h1>
+            <p className="text-gray-600">Manage your assigned patients and their therapy progress</p>
+          </div>
 
       {/* Search and Filter Controls */}
       <div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -149,6 +171,8 @@ export default function TherapistPatients() {
           ))}
         </div>
       )}
+        </main>
+      </div>
     </div>
   )
 }

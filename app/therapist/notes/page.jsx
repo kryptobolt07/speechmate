@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar, Clock, User, Plus, Search, Filter, Edit, Trash2 } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { UnifiedSidebar, HamburgerButton } from "@/components/unified-sidebar"
+import { useToast } from "@/hooks/use-toast"
 
 export default function TherapistNotes() {
   const [notes, setNotes] = useState([])
@@ -18,6 +20,8 @@ export default function TherapistNotes() {
   const [patientFilter, setPatientFilter] = useState("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingNote, setEditingNote] = useState(null)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const { toast } = useToast()
   const [formData, setFormData] = useState({
     patientId: '',
     sessionDate: '',
@@ -33,32 +37,43 @@ export default function TherapistNotes() {
 
   const fetchNotes = async () => {
     try {
-      // Mock notes data for now
-      const mockNotes = [
-        {
-          id: 1,
-          patientName: "John Doe",
-          sessionDate: "2024-01-15",
-          sessionTime: "10:00 AM",
-          notes: "Patient showed good progress with 'R' sounds. Practiced with various words and sentences.",
-          goals: "Continue working on 'R' sounds, introduce 'S' sounds",
-          progress: "Good",
-          createdAt: "2024-01-15T10:30:00Z"
-        },
-        {
-          id: 2,
-          patientName: "Jane Smith",
-          sessionDate: "2024-01-14",
-          sessionTime: "2:00 PM",
-          notes: "Patient struggled with articulation today. Need to adjust therapy approach.",
-          goals: "Focus on basic articulation exercises",
-          progress: "Needs Improvement",
-          createdAt: "2024-01-14T14:30:00Z"
-        }
+      const response = await fetch('/api/therapists/me/schedule')
+      if (!response.ok) {
+        throw new Error('Failed to fetch schedule data')
+      }
+      const data = await response.json()
+      
+      // Get all appointments with therapist notes
+      const allAppointments = [
+        ...(data.today || []),
+        ...(data.week || []),
+        ...(data.upcoming || []),
+        ...(data.past || [])
       ]
-      setNotes(mockNotes)
+      
+      // Filter appointments that have therapist notes
+      const notesWithData = allAppointments
+        .filter(apt => apt.therapistNotes && apt.therapistNotes.trim())
+        .map(apt => ({
+          id: apt.id,
+          patientName: apt.patient,
+          sessionDate: apt.date,
+          sessionTime: apt.time,
+          notes: apt.therapistNotes,
+          goals: '', // Not stored in current schema
+          progress: apt.status === 'completed' ? 'Good' : 'In Progress',
+          createdAt: apt.fullDate || new Date().toISOString(),
+          appointmentId: apt.id
+        }))
+      
+      setNotes(notesWithData)
     } catch (error) {
       console.error('Error fetching notes:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch session notes. Please try again.",
+      })
     } finally {
       setLoading(false)
     }
@@ -123,7 +138,20 @@ export default function TherapistNotes() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6">
+    <div className="min-h-screen bg-gray-50">
+      <UnifiedSidebar userType="therapist" isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 bg-white shadow-sm border-b">
+          <div className="flex h-16 items-center justify-between px-4">
+            <div className="flex items-center gap-4">
+              <HamburgerButton onClick={() => setIsSidebarOpen(true)} />
+              <h2 className="text-lg font-bold">Session Notes</h2>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 p-4 md:p-6">
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Session Notes</h1>
@@ -313,6 +341,8 @@ export default function TherapistNotes() {
           ))}
         </div>
       )}
+        </main>
+      </div>
     </div>
   )
 }

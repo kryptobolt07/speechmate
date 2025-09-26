@@ -53,20 +53,24 @@ export async function GET(request) {
     // Fetch recent appointments
     const recentAppointments = await Appointment.find()
       .sort({ createdAt: -1 })
-      .limit(5)
+      .limit(10)
       .populate('patientId', 'name')
       .populate('therapistId', 'name')
-      .select('patientId therapistId appointmentDate appointmentTime status createdAt')
+      .populate('hospitalId', 'name')
       .lean()
 
     // Format recent appointments for frontend
     const formattedRecentAppointments = recentAppointments.map(appt => ({
       id: appt._id,
-      patientName: appt.patientId?.name || 'N/A',
-      therapistName: appt.therapistId?.name || 'N/A',
-      dateTime: `${new Date(appt.appointmentDate).toLocaleDateString()} ${appt.appointmentTime}`,
+      patientName: appt.patientId?.name || 'Unknown',
+      therapistName: appt.therapistId?.name || 'Unknown',
+      appointmentDate: appt.appointmentDate,
+      appointmentTime: appt.appointmentTime,
+      hospitalName: appt.hospitalId?.name || 'Unknown',
+      condition: appt.condition || 'N/A',
+      type: appt.type || 'N/A',
       status: appt.status,
-      bookedAt: appt.createdAt
+      createdAt: appt.createdAt
     }))
 
     // TODO: Implement real reassignment tracking

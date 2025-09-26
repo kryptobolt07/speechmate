@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { UnifiedSidebar, HamburgerButton } from "@/components/unified-sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Star } from "lucide-react"
+import { Star, Calendar, Clock, MapPin, User } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 
@@ -16,20 +16,56 @@ export default function AddReview({ params }) {
   const [feedback, setFeedback] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [appointment, setAppointment] = useState(null)
+  const [loading, setLoading] = useState(true)
   const router = useRouter()
   const { toast } = useToast()
 
-  // Mock appointment data (in a real app, you'd fetch this based on the ID)
-  const appointment = {
-    id: params.id,
-    therapist: {
-      name: "Dr. Sarah Johnson",
-      specialty: "Speech-Language Pathologist",
-      image: "/placeholder.svg?height=80&width=80",
-    },
-    date: "April 30, 2025",
-    time: "11:00 AM",
-    type: "Initial Assessment",
+  useEffect(() => {
+    fetchAppointment()
+  }, [params.id])
+
+  const fetchAppointment = async () => {
+    try {
+      const response = await fetch(`/api/appointments/${params.id}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch appointment')
+      }
+      const data = await response.json()
+      
+      // Check if appointment is completed and can be reviewed
+      if (data.status !== 'completed') {
+        toast({
+          variant: "destructive",
+          title: "Cannot review",
+          description: "You can only review completed sessions.",
+        })
+        router.push('/patient/appointments')
+        return
+      }
+
+      if (data.patientFeedback && data.patientFeedback.rating) {
+        toast({
+          variant: "destructive",
+          title: "Already reviewed",
+          description: "You have already reviewed this session.",
+        })
+        router.push('/patient/appointments')
+        return
+      }
+
+      setAppointment(data)
+    } catch (error) {
+      console.error('Error fetching appointment:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch appointment details.",
+      })
+      router.push('/patient/appointments')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleRatingClick = (selectedRating) => {
@@ -55,24 +91,55 @@ export default function AddReview({ params }) {
     setIsSubmitting(true)
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const response = await fetch(`/api/appointments/${params.id}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating, comment: feedback })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to submit review')
+      }
 
       toast({
         title: "Review submitted",
         description: "Thank you for your feedback!",
       })
 
-      router.push("/patient/dashboard")
+      router.push("/patient/appointments")
     } catch (error) {
+      console.error('Error submitting review:', error)
       toast({
         variant: "destructive",
         title: "Submission failed",
-        description: "There was a problem submitting your review. Please try again.",
+        description: error.message || "There was a problem submitting your review. Please try again.",
       })
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading appointment details...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!appointment) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-lg font-medium text-gray-900 mb-2">Appointment not found</h2>
+          <p className="text-gray-600">The appointment you're looking for doesn't exist.</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -103,16 +170,32 @@ export default function AddReview({ params }) {
             <CardContent className="space-y-6">
               <div className="flex items-center space-x-4">
                 <Avatar className="h-16 w-16">
-                  <AvatarImage src={appointment.therapist.image} alt={appointment.therapist.name} />
-                  <AvatarFallback>SJ</AvatarFallback>
+                  <AvatarImage src="/placeholder-user.jpg" alt={appointment.therapistId?.name} />
+                  <AvatarFallback>
+                    {appointment.therapistId?.name?.split(' ').map(n => n[0]).join('') || 'T'}
+                  </AvatarFallback>
                 </Avatar>
-                <div>
-                  <h3 className="font-medium">{appointment.therapist.name}</h3>
-                  <p className="text-sm text-gray-500">{appointment.therapist.specialty}</p>
-                  <p className="text-sm text-gray-500">
-                    Session on {appointment.date} at {appointment.time}
-                  </p>
-                  <p className="text-sm text-gray-500">{appointment.type}</p>
+                <div className="flex-1">
+                  <h3 className="font-medium">{appointment.therapistId?.name || 'Unknown Therapist'}</h3>
+                  <p className="text-sm text-gray-500">{appointment.therapistId?.specialty || 'Speech Therapist'}</p>
+                  <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-4 w-4" />
+                      <span>{new Date(appointment.appointmentDate).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-4 w-4" />
+                      <span>{appointment.appointmentTime}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 mt-1 text-sm text-gray-500">
+                    <MapPin className="h-4 w-4" />
+                    <span>{appointment.hospitalId?.name || 'Unknown Location'}</span>
+                  </div>
+                  <div className="flex items-center gap-1 mt-1 text-sm text-gray-500">
+                    <User className="h-4 w-4" />
+                    <span>{appointment.type} - {appointment.condition || 'General'}</span>
+                  </div>
                 </div>
               </div>
 

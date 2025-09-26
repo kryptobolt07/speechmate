@@ -133,12 +133,18 @@ export default function AdminAppointments() {
   }
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'short',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
+    if (!dateString) return 'Invalid Date'
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
+    } catch (error) {
+      console.error('Date formatting error:', error, dateString)
+      return 'Invalid Date'
+    }
   }
 
   const uniqueHospitals = [...new Set(appointments.map(apt => apt.hospitalName).filter(Boolean))]

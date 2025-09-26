@@ -20,9 +20,14 @@ export async function POST(request) {
     // Find user by email and select the password field
     const user = await User.findOne({ email }).select('+password')
 
-    // Check if user exists and password matches
-    if (!user || !(await user.comparePassword(password))) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+    // Check if user exists
+    if (!user) {
+      return NextResponse.json({ error: "Email not found" }, { status: 401 })
+    }
+
+    // Check if password matches
+    if (!(await user.comparePassword(password))) {
+      return NextResponse.json({ error: "Incorrect password" }, { status: 401 })
     }
 
     // Generate JWT token

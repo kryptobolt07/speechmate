@@ -4,11 +4,12 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Clock, MapPin, User, Plus, Filter, Search } from "lucide-react"
+import { Calendar, Clock, MapPin, User, Plus, Filter, Search, Star, MessageSquare } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { UnifiedSidebar, HamburgerButton } from "@/components/unified-sidebar"
 import {
@@ -29,9 +30,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { useToast } from "@/hooks/use-toast"
 
 export default function PatientAppointments() {
-  const [appointments, setAppointments] = useState([])
+  const [upcomingAppointments, setUpcomingAppointments] = useState([])
+  const [pastAppointments, setPastAppointments] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -45,6 +48,7 @@ export default function PatientAppointments() {
   const [cancelAppointment, setCancelAppointment] = useState(null)
   const [cancelReason, setCancelReason] = useState("")
   const [isCancelling, setIsCancelling] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
     fetchAppointments()
@@ -57,9 +61,15 @@ export default function PatientAppointments() {
         throw new Error('Failed to fetch appointments')
       }
       const data = await response.json()
-      setAppointments(data.upcomingAppointments || [])
+      setUpcomingAppointments(data.upcomingAppointments || [])
+      setPastAppointments(data.pastAppointments || [])
     } catch (error) {
       console.error('Error fetching appointments:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch appointments. Please try again.",
+      })
     } finally {
       setLoading(false)
     }
@@ -82,11 +92,20 @@ export default function PatientAppointments() {
         body: JSON.stringify({ appointmentDate: newDate, appointmentTime: newTime, notes: 'Rescheduled by patient' })
       })
       if (!response.ok) throw new Error('Failed to reschedule appointment')
+      toast({
+        title: "Success",
+        description: "Appointment rescheduled successfully.",
+      })
       setIsRescheduleOpen(false)
       setRescheduleAppointment(null)
       await fetchAppointments()
     } catch (error) {
       console.error('Error rescheduling appointment:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to reschedule appointment. Please try again.",
+      })
     } finally {
       setIsRescheduling(false)
     }
@@ -108,22 +127,36 @@ export default function PatientAppointments() {
         body: JSON.stringify({ reason: cancelReason || 'No reason provided' })
       })
       if (!response.ok) throw new Error('Failed to cancel appointment')
+      toast({
+        title: "Success",
+        description: "Appointment cancelled successfully.",
+      })
       setIsCancelOpen(false)
       setCancelAppointment(null)
       await fetchAppointments()
     } catch (error) {
       console.error('Error cancelling appointment:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to cancel appointment. Please try again.",
+      })
     } finally {
       setIsCancelling(false)
     }
   }
 
-  const filteredAppointments = appointments.filter(appointment => {
-    const matchesSearch = appointment.therapistName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         appointment.condition?.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === "all" || appointment.status === statusFilter
-    return matchesSearch && matchesStatus
-  })
+  const filterAppointments = (appointments) => {
+    return appointments.filter(appointment => {
+      const matchesSearch = appointment.therapistName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           appointment.condition?.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchesStatus = statusFilter === "all" || appointment.status === statusFilter
+      return matchesSearch && matchesStatus
+    })
+  }
+
+  const filteredUpcomingAppointments = filterAppointments(upcomingAppointments)
+  const filteredPastAppointments = filterAppointments(pastAppointments)
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -131,8 +164,17 @@ export default function PatientAppointments() {
       case 'pending': return 'bg-yellow-100 text-yellow-800'
       case 'cancelled': return 'bg-red-100 text-red-800'
       case 'completed': return 'bg-blue-100 text-blue-800'
+      case 'no-show': return 'bg-gray-100 text-gray-800'
       default: return 'bg-gray-100 text-gray-800'
     }
+  }
+
+  const canReview = (appointment) => {
+    return appointment.status === 'completed' && !appointment.patientFeedback?.rating
+  }
+
+  const hasReviewed = (appointment) => {
+    return appointment.status === 'completed' && appointment.patientFeedback?.rating
   }
 
   const formatDate = (dateString) => {
@@ -221,7 +263,7 @@ export default function PatientAppointments() {
         </TabsList>
         
         <TabsContent value="upcoming" className="space-y-4">
-          {filteredAppointments.length === 0 ? (
+          {filteredUpcomingAppointments.length === 0 ? (
             <Card>
               <CardContent className="text-center py-8">
                 <Calendar className="mx-auto h-12 w-12 text-gray-400 mb-4" />
@@ -237,7 +279,7 @@ export default function PatientAppointments() {
             </Card>
           ) : (
             <div className="grid gap-4">
-              {filteredAppointments.map((appointment) => (
+              {filteredUpcomingAppointments.map((appointment) => (
                 <Card key={appointment.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-6">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -308,13 +350,85 @@ export default function PatientAppointments() {
         </TabsContent>
         
         <TabsContent value="past" className="space-y-4">
-          <Card>
-            <CardContent className="text-center py-8">
-              <Calendar className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No past appointments</h3>
-              <p className="text-gray-600">Your completed appointments will appear here.</p>
-            </CardContent>
-          </Card>
+          {filteredPastAppointments.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-8">
+                <Calendar className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No past appointments</h3>
+                <p className="text-gray-600">Your completed appointments will appear here.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4">
+              {filteredPastAppointments.map((appointment) => (
+                <Card key={appointment.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-3">
+                          <Badge className={getStatusColor(appointment.status)}>
+                            {appointment.status}
+                          </Badge>
+                          <span className="text-sm text-gray-500">{appointment.type}</span>
+                        </div>
+                        
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                          {appointment.therapistName}
+                        </h3>
+                        
+                        <div className="space-y-2 text-sm text-gray-600">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4" />
+                            <span>{formatDate(appointment.date)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4" />
+                            <span>{appointment.time}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4" />
+                            <span>{appointment.location}</span>
+                          </div>
+                          {appointment.condition && (
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4" />
+                              <span>Condition: {appointment.condition}</span>
+                            </div>
+                          )}
+                          {hasReviewed(appointment) && (
+                            <div className="flex items-center gap-2">
+                              <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                              <span>Rated: {appointment.patientFeedback.rating}/5 stars</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 sm:mt-0 sm:ml-4 flex flex-col sm:flex-row gap-2">
+                        {canReview(appointment) && (
+                          <Link href={`/patient/reviews/add/${appointment.id}`}>
+                            <Button size="sm" className="w-full sm:w-auto">
+                              <Star className="mr-2 h-4 w-4" />
+                              Leave Review
+                            </Button>
+                          </Link>
+                        )}
+                        {hasReviewed(appointment) && (
+                          <Button size="sm" variant="outline" disabled className="w-full sm:w-auto">
+                            <MessageSquare className="mr-2 h-4 w-4" />
+                            Review Submitted
+                          </Button>
+                        )}
+                        <Button variant="outline" size="sm">
+                          View Details
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
           {/* Reschedule Dialog */}
