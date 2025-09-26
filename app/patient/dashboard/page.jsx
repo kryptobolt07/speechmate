@@ -116,23 +116,24 @@ export default function PatientDashboard() {
             <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsSidebarOpen(true)}>
                 <Menu className="h-6 w-6" /><span className="sr-only">Open sidebar</span>
             </Button>
-            <div className="md:hidden flex-1"></div> 
+            
+            <h2 className="text-lg font-bold md:text-xl">Patient Dashboard</h2>
 
-            <h2 className="text-xl font-bold hidden md:block">Patient Dashboard</h2>
-
-            <div className="flex items-center gap-4 ml-auto">
-              <Button variant="ghost" size="icon"><Bell className="h-5 w-5" /></Button>
-              <Avatar>
+            <div className="flex items-center gap-2 md:gap-4">
+              <Button variant="ghost" size="icon" className="hidden sm:flex">
+                <Bell className="h-5 w-5" />
+              </Button>
+              <Avatar className="h-8 w-8 md:h-10 md:w-10">
                 <AvatarImage src="/placeholder.svg?height=32&width=32" alt={patientName} />
-                <AvatarFallback>{patientInitials}</AvatarFallback>
+                <AvatarFallback className="text-xs md:text-sm">{patientInitials}</AvatarFallback>
               </Avatar>
             </div>
           </div>
         </header>
-        <main className="flex-1 p-4 md:p-6"> { /* Responsive padding */}
+        <main className="flex-1 p-4 md:p-6">
           <div className="mb-6 md:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <h1 className="text-xl md:text-2xl font-bold text-gray-900">Welcome, {patientName.split(" ")[0]}</h1>
-            <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-2 sm:gap-3"> { /* Stack buttons on mobile */}
+            <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row gap-2 sm:gap-3">
               <Link href="/patient/book">
                 <Button className="w-full sm:w-auto">
                   <Plus className="mr-2 h-4 w-4" /> Book New Appointment
@@ -146,9 +147,9 @@ export default function PatientDashboard() {
             </div>
           </div>
 
-          {/* Responsive Grid for cards */} 
+          {/* Responsive Grid for cards */}
           <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-3">
-            {/* Upcoming Appointments Card */} 
+            {/* Upcoming Appointments Card */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle>Upcoming Appointments</CardTitle>
@@ -191,7 +192,7 @@ export default function PatientDashboard() {
               </CardContent>
             </Card>
 
-            {/* Assigned Therapist Card */} 
+            {/* Assigned Therapist Card */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle>Your Therapist</CardTitle>
@@ -232,7 +233,7 @@ export default function PatientDashboard() {
               </CardContent>
             </Card>
 
-            {/* Therapy Resources Card */} 
+            {/* Therapy Resources Card */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle>Therapy Resources</CardTitle>

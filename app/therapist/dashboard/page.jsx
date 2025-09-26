@@ -113,15 +113,16 @@ export default function TherapistDashboard() {
             <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsSidebarOpen(true)}>
                 <Menu className="h-6 w-6" /><span className="sr-only">Open sidebar</span>
             </Button>
-            <div className="md:hidden flex-1"></div> 
-
-            <h2 className="text-xl font-bold hidden md:block">Therapist Dashboard</h2>
             
-            <div className="flex items-center gap-4 ml-auto">
-              <Button variant="ghost" size="icon"><Bell className="h-5 w-5" /></Button>
-              <Avatar>
+            <h2 className="text-lg font-bold md:text-xl">Therapist Dashboard</h2>
+            
+            <div className="flex items-center gap-2 md:gap-4">
+              <Button variant="ghost" size="icon" className="hidden sm:flex">
+                <Bell className="h-5 w-5" />
+              </Button>
+              <Avatar className="h-8 w-8 md:h-10 md:w-10">
                 <AvatarImage src="/placeholder.svg?height=32&width=32" alt={therapistName} />
-                <AvatarFallback>{therapistInitials}</AvatarFallback>
+                <AvatarFallback className="text-xs md:text-sm">{therapistInitials}</AvatarFallback>
               </Avatar>
             </div>
           </div>

@@ -49,8 +49,11 @@ export async function POST(request) {
     // 4. Check therapist availability at this specific date/time (prevent double booking - schema index helps but check first is better UX)
     // 5. Get hospitalId associated with the therapistId
 
-    // For now, assume therapist exists and fetch their hospitalId
-    const therapist = await User.findById(therapistId).select('hospitalId').lean();
+    // Log request for observability
+    console.info('[BOOK] request', { patientId, therapistId, appointmentDate, appointmentTime, type, condition })
+
+    // Verify therapist exists and fetch their hospitalId
+    const therapist = await User.findOne({ _id: therapistId, role: 'therapist' }).select('hospitalId').lean();
     if (!therapist || !therapist.hospitalId) {
         return NextResponse.json({ error: "Therapist not found or missing hospital assignment" }, { status: 404 });
     }
@@ -72,6 +75,8 @@ export async function POST(request) {
 
     // Save the appointment to the database
     const savedAppointment = await newAppointment.save()
+
+    console.info('[BOOK] success', { appointmentId: savedAppointment._id })
 
     // Mock successful booking // Return success response with appointment details
     // const appointmentId = `appointment-${Date.now()}`

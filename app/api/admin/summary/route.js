@@ -89,8 +89,8 @@ export async function GET(request) {
 
       hospitalStats.push({
         name: hospital.name,
-        therapists: therapistCount,
-        patients: patientCount,
+        therapistCount: therapistCount,
+        patientCount: patientCount,
       })
 
       totalTherapists += therapistCount
@@ -99,7 +99,7 @@ export async function GET(request) {
 
     // Fetch total and pending appointments
     const totalAppointments = await Appointment.countDocuments()
-    const pendingAppointments = await Appointment.countDocuments({ status: 'scheduled' })
+    const pendingAppointments = await Appointment.countDocuments({ status: 'pending' })
 
     // Construct the stats array
     const stats = [
@@ -128,11 +128,9 @@ export async function GET(request) {
       bookedAt: appt.createdAt
     }))
 
-    // Mock recent reassignments
-    const recentReassignments = [
-      { id: 1, patientName: "Olivia Martinez", fromTherapist: "Dr. James Wilson", toTherapist: "Dr. Emily Parker", date: "2024-05-19" },
-      { id: 2, patientName: "Ethan Davis", fromTherapist: "Dr. Michael Chen", toTherapist: "Dr. Sarah Johnson", date: "2024-05-18" },
-    ]
+    // TODO: Implement real reassignment tracking
+    // For now, return empty array until we have a reassignment log system
+    const recentReassignments = []
 
     // Construct the final summary object
     const finalSummary = {

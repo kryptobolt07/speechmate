@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import dbConnect from "@/lib/dbConnect"
 import User from "@/models/User"
+import Appointment from "@/models/Appointment"
+import Hospital from "@/models/Hospital"
 
 // Removed mock patient data
 
@@ -51,16 +53,60 @@ export async function GET(request) {
         return NextResponse.json({ error: "Forbidden - Role mismatch" }, { status: 403 })
     }
 
-    // In a real app, you might populate related data here:
-    // const patientWithDetails = await User.findById(userId)
-    //   .select("-password")
-    //   .populate('assignedTherapistId') // Assuming a field linking to Therapist User
-    //   .exec()
-    // const appointments = await Appointment.find({ patientId: userId })
-    // Return { ...patientWithDetails.toObject(), appointments }
+    // Fetch patient with assigned therapist
+    const patientWithTherapist = await User.findById(userId)
+      .select("-password")
+      .populate('assignedTherapistId', 'name specialty profilePictureUrl')
+      .lean()
 
-    // Return the basic patient data for now
-    return NextResponse.json(patient)
+    if (!patientWithTherapist) {
+      return NextResponse.json({ error: "Patient not found" }, { status: 404 })
+    }
+
+    // Fetch upcoming and past appointments
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const upcomingAppointments = await Appointment.find({
+      patientId: userId,
+      appointmentDate: { $gte: today },
+      status: { $in: ['pending', 'confirmed'] }
+    })
+    .populate('therapistId', 'name')
+    .populate('hospitalId', 'name')
+    .sort({ appointmentDate: 1, appointmentTime: 1 })
+    .lean()
+
+    const pastAppointments = await Appointment.find({
+      patientId: userId,
+      appointmentDate: { $lt: today }
+    })
+    .populate('therapistId', 'name')
+    .populate('hospitalId', 'name')
+    .sort({ appointmentDate: -1 })
+    .limit(10)
+    .lean()
+
+    // Format appointments for frontend
+    const formatAppointments = (appointments) => appointments.map(apt => ({
+      id: apt._id,
+      therapistName: apt.therapistId?.name || 'Unknown',
+      date: new Date(apt.appointmentDate).toLocaleDateString(),
+      time: apt.appointmentTime,
+      location: apt.hospitalId?.name || 'Unknown',
+      status: apt.status,
+      condition: apt.condition,
+      type: apt.type
+    }))
+
+    const response = {
+      ...patientWithTherapist,
+      assignedTherapist: patientWithTherapist.assignedTherapistId,
+      upcomingAppointments: formatAppointments(upcomingAppointments),
+      pastAppointments: formatAppointments(pastAppointments)
+    }
+
+    return NextResponse.json(response)
 
   } catch (error) {
     console.error("Error fetching patient data:", error)

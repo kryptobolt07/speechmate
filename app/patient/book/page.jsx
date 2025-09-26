@@ -129,11 +129,17 @@ export default function BookAppointment() {
             body: JSON.stringify(payload),
         })
         
-        const result = await response.json()
-        
         if (!response.ok) {
-            throw new Error(result.error || "Booking failed. Please try again.")
+            // Try to extract useful error details
+            let message = 'Booking failed. Please try again.'
+            try {
+              const text = await response.text()
+              try { message = (JSON.parse(text).error) || message } catch { message = text || message }
+            } catch {}
+            throw new Error(message)
         }
+
+        const result = await response.json()
         
         toast({
             title: "Appointment Booked",
