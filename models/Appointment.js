@@ -46,6 +46,25 @@ const AppointmentSchema = new mongoose.Schema({
     type: String, // Optional notes from patient at booking
     trim: true,
   },
+  classification: {
+    source: {
+      type: String,
+      trim: true,
+    },
+    primaryPrediction: {
+      type: String,
+      trim: true,
+    },
+    selectedCondition: {
+      type: String,
+      trim: true,
+    },
+    probabilities: {
+      type: Map,
+      of: Number,
+      default: undefined,
+    },
+  },
   status: {
     type: String,
     enum: ['pending', 'confirmed', 'cancelled', 'completed', 'no-show'],

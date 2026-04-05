@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import { UnifiedSidebar, HamburgerButton } from "@/components/unified-sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,13 +11,60 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { format } from "date-fns"
-import { CalendarIcon, Loader2 } from "lucide-react"
+import { CalendarIcon, FileAudio, Loader2, Mic, Sparkles, Square, Upload } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+
+function mergeFloat32Chunks(chunks) {
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
+  const merged = new Float32Array(totalLength)
+  let offset = 0
+
+  for (const chunk of chunks) {
+    merged.set(chunk, offset)
+    offset += chunk.length
+  }
+
+  return merged
+}
+
+function writeWavString(view, offset, value) {
+  for (let i = 0; i < value.length; i += 1) {
+    view.setUint8(offset + i, value.charCodeAt(i))
+  }
+}
+
+function encodeWav(samples, sampleRate) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2)
+  const view = new DataView(buffer)
+
+  writeWavString(view, 0, "RIFF")
+  view.setUint32(4, 36 + samples.length * 2, true)
+  writeWavString(view, 8, "WAVE")
+  writeWavString(view, 12, "fmt ")
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  writeWavString(view, 36, "data")
+  view.setUint32(40, samples.length * 2, true)
+
+  let offset = 44
+  for (let i = 0; i < samples.length; i += 1) {
+    const sample = Math.max(-1, Math.min(1, samples[i]))
+    view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true)
+    offset += 2
+  }
+
+  return buffer
+}
 
 export default function BookAppointment() {
   const [step, setStep] = useState(1)
@@ -28,6 +75,9 @@ export default function BookAppointment() {
     date: undefined,
   })
   const [classifiedCondition, setClassifiedCondition] = useState(null)
+  const [classifierSource, setClassifierSource] = useState(null)
+  const [audioAnalysis, setAudioAnalysis] = useState(null)
+  const [evaluationReasoning, setEvaluationReasoning] = useState(null)
   const [hospitals, setHospitals] = useState([])
   const [availableTherapists, setAvailableTherapists] = useState([])
   const [selectedTherapistId, setSelectedTherapistId] = useState(null)
@@ -35,40 +85,202 @@ export default function BookAppointment() {
   const [isLoadingCondition, setIsLoadingCondition] = useState(false)
   const [isLoadingTherapists, setIsLoadingTherapists] = useState(false)
   const [isLoadingBooking, setIsLoadingBooking] = useState(false)
+  const [audioMode, setAudioMode] = useState("record")
+  const [audioFile, setAudioFile] = useState(null)
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState("")
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingSeconds, setRecordingSeconds] = useState(0)
   const router = useRouter()
   const { toast } = useToast()
+
+  const audioContextRef = useRef(null)
+  const mediaStreamRef = useRef(null)
+  const sourceRef = useRef(null)
+  const processorRef = useRef(null)
+  const recordingChunksRef = useRef([])
+  const recordingTimerRef = useRef(null)
+  const sampleRateRef = useRef(44100)
 
   useEffect(() => {
     const loadHospitals = async () => {
       try {
-        const res = await fetch('/api/hospitals')
-        if (!res.ok) throw new Error('Failed to fetch hospitals')
+        const res = await fetch("/api/hospitals")
+        if (!res.ok) throw new Error("Failed to fetch hospitals")
         const data = await res.json()
         setHospitals(Array.isArray(data) ? data : [])
       } catch (e) {
-        console.error('Hospitals load error', e)
+        console.error("Hospitals load error", e)
       }
     }
+
     loadHospitals()
   }, [])
 
+  useEffect(() => {
+    return () => {
+      void stopRecording(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (audioPreviewUrl) {
+        URL.revokeObjectURL(audioPreviewUrl)
+      }
+    }
+  }, [audioPreviewUrl])
+
+  const resetAudioPreview = () => {
+    if (audioPreviewUrl) {
+      URL.revokeObjectURL(audioPreviewUrl)
+    }
+  }
+
+  const setSelectedAudioFile = (file) => {
+    resetAudioPreview()
+    const nextUrl = file ? URL.createObjectURL(file) : ""
+    setAudioFile(file)
+    setAudioPreviewUrl(nextUrl)
+  }
+
+  const cleanupRecorder = async () => {
+    if (recordingTimerRef.current) {
+      window.clearInterval(recordingTimerRef.current)
+      recordingTimerRef.current = null
+    }
+
+    if (processorRef.current) {
+      processorRef.current.disconnect()
+      processorRef.current.onaudioprocess = null
+      processorRef.current = null
+    }
+
+    if (sourceRef.current) {
+      sourceRef.current.disconnect()
+      sourceRef.current = null
+    }
+
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop())
+      mediaStreamRef.current = null
+    }
+
+    if (audioContextRef.current) {
+      await audioContextRef.current.close().catch(() => { })
+      audioContextRef.current = null
+    }
+  }
+
+  const stopRecording = async (skipSave = false) => {
+    if (!isRecording && !skipSave) {
+      return
+    }
+
+    setIsRecording(false)
+    await cleanupRecorder()
+
+    if (skipSave) {
+      recordingChunksRef.current = []
+      setRecordingSeconds(0)
+      return
+    }
+
+    const mergedAudio = mergeFloat32Chunks(recordingChunksRef.current)
+    recordingChunksRef.current = []
+    setRecordingSeconds(0)
+
+    if (!mergedAudio.length) {
+      toast({
+        variant: "destructive",
+        title: "Recording failed",
+        description: "No microphone audio was captured. Please try again.",
+      })
+      return
+    }
+
+    const wavBuffer = encodeWav(mergedAudio, sampleRateRef.current)
+    const file = new File([wavBuffer], `speechmate-recording-${Date.now()}.wav`, { type: "audio/wav" })
+    setSelectedAudioFile(file)
+  }
+
+  const startRecording = async () => {
+    try {
+      await stopRecording(true)
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext
+      const audioContext = new AudioContextClass()
+      const source = audioContext.createMediaStreamSource(stream)
+      const processor = audioContext.createScriptProcessor(4096, 1, 1)
+      const silentGain = audioContext.createGain()
+      silentGain.gain.value = 0
+
+      recordingChunksRef.current = []
+      sampleRateRef.current = audioContext.sampleRate
+
+      processor.onaudioprocess = (event) => {
+        const channelData = event.inputBuffer.getChannelData(0)
+        recordingChunksRef.current.push(new Float32Array(channelData))
+      }
+
+      source.connect(processor)
+      processor.connect(silentGain)
+      silentGain.connect(audioContext.destination)
+
+      audioContextRef.current = audioContext
+      mediaStreamRef.current = stream
+      sourceRef.current = source
+      processorRef.current = processor
+
+      setIsRecording(true)
+      setRecordingSeconds(0)
+      recordingTimerRef.current = window.setInterval(() => {
+        setRecordingSeconds((current) => current + 1)
+      }, 1000)
+    } catch (error) {
+      console.error("Recording start error:", error)
+      toast({
+        variant: "destructive",
+        title: "Microphone unavailable",
+        description: "Please allow microphone access or upload an existing recording instead.",
+      })
+    }
+  }
+
   const handleChange = (field, value) => {
-    setFormData({
-      ...formData,
+    setFormData((current) => ({
+      ...current,
       [field]: value,
-    })
+    }))
+  }
+
+  const handleAudioUpload = (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setSelectedAudioFile(file)
   }
 
   const handleNext = async () => {
     if (step === 1) {
-      if (!formData.hospital || !formData.issueDescription) {
-        toast({ variant: "destructive", title: "Missing information", description: "Please select a location and describe your issue." })
+      if (!formData.hospital || (!formData.issueDescription && !audioFile)) {
+        toast({
+          variant: "destructive",
+          title: "Missing information",
+          description: "Please select a location, and provide either a description or an audio sample.",
+        })
         return
       }
       setStep(2)
-    } else if (step === 2) {
+      return
+    }
+
+    if (step === 2) {
       if (!formData.date || !selectedTime) {
-        toast({ variant: "destructive", title: "Missing information", description: "Please select a preferred date and enter a time." })
+        toast({
+          variant: "destructive",
+          title: "Missing information",
+          description: "Please select a preferred date and enter a time.",
+        })
         return
       }
 
@@ -78,105 +290,139 @@ export default function BookAppointment() {
 
       try {
         const formattedDate = format(formData.date, "yyyy-MM-dd")
+        const payload = new FormData()
+        payload.append("description", formData.issueDescription)
+        payload.append("hospital", formData.hospital)
+        payload.append("appointmentDate", formattedDate)
+        payload.append("appointmentTime", selectedTime)
+        payload.append("audio", audioFile)
+
         const classifyResponse = await fetch("/api/llm/classify", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            description: formData.issueDescription,
-            hospital: formData.hospital,
-            appointmentDate: formattedDate,
-            appointmentTime: selectedTime,
-          }),
+          body: payload,
         })
+
         if (!classifyResponse.ok) {
-          throw new Error("Failed to classify condition")
+          let message = "Failed to classify condition"
+          try {
+            const text = await classifyResponse.text()
+            try {
+              message = JSON.parse(text).error || message
+            } catch {
+              message = text || message
+            }
+          } catch { }
+          throw new Error(message)
         }
+
         const classifyData = await classifyResponse.json()
-        const { therapistId, therapist, condition } = classifyData
-        // Backend returns a single best therapist; render just that one for confirmation
-        const singleList = therapist ? [therapist] : []
-        setAvailableTherapists(singleList)
+        const { therapistId, therapist, condition, classifierSource: source, audioAnalysis: analysis, evaluation } = classifyData
+
+        setAvailableTherapists(therapist ? [therapist] : [])
         if (therapistId) setSelectedTherapistId(therapistId)
         setClassifiedCondition(condition || null)
-        setIsLoadingCondition(false)
-        setIsLoadingTherapists(false)
+        setClassifierSource(source || null)
+        setAudioAnalysis(analysis || null)
+        setEvaluationReasoning(evaluation?.reasoning || null)
       } catch (error) {
         console.error("Error during step 2->3 transition:", error)
-        toast({ variant: "destructive", title: "Error", description: error.message || "Could not find therapists. Please try again." })
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message || "Could not find therapists. Please try again.",
+        })
+        setStep(2)
+      } finally {
         setIsLoadingCondition(false)
         setIsLoadingTherapists(false)
-        setStep(2)
       }
     }
   }
 
   const handleBack = () => {
-    if (step > 1) {
+    if (step === 3) {
       setAvailableTherapists([])
       setClassifiedCondition(null)
+      setClassifierSource(null)
+      setAudioAnalysis(null)
+      setEvaluationReasoning(null)
       setSelectedTherapistId(null)
-      setSelectedTime("")
-      setStep(step - 1)
+    }
+
+    if (step > 1) {
+      setStep((current) => current - 1)
     }
   }
 
   const handleConfirm = async () => {
     if (!selectedTherapistId || !selectedTime) {
-       toast({ variant: "destructive", title: "Missing Information", description: "Please select a therapist and enter a preferred time." })
-       return
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please select a therapist and enter a preferred time.",
+      })
+      return
     }
-    
+
     setIsLoadingBooking(true)
     try {
-        const payload = {
-            therapistId: selectedTherapistId,
-            appointmentDate: format(formData.date, "yyyy-MM-dd"),
-            appointmentTime: selectedTime,
-            type: "Initial Assessment",
-            condition: classifiedCondition,
-            notes: formData.issueDescription,
-        }
-        
-        const response = await fetch("/api/appointments/book", {
-            method: "POST",
-            headers: { 
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-        })
-        
-        if (!response.ok) {
-            // Try to extract useful error details
-            let message = 'Booking failed. Please try again.'
-            try {
-              const text = await response.text()
-              try { message = (JSON.parse(text).error) || message } catch { message = text || message }
-            } catch {}
-            throw new Error(message)
-        }
+      const payload = {
+        therapistId: selectedTherapistId,
+        appointmentDate: format(formData.date, "yyyy-MM-dd"),
+        appointmentTime: selectedTime,
+        type: "Initial Assessment",
+        condition: classifiedCondition,
+        classification: {
+          source: classifierSource,
+          primaryPrediction: audioAnalysis?.primary_prediction || null,
+          selectedCondition: classifiedCondition,
+          geminiReasoning: evaluationReasoning,
+          probabilities: audioAnalysis?.combined_probabilities || null,
+        },
+        notes: formData.issueDescription,
+      }
 
-        const result = await response.json()
-        
-        toast({
-            title: "Appointment Booked",
-            description: result.message || "Your appointment has been successfully scheduled.",
-        })
-        router.push("/patient/dashboard")
-        
+      const response = await fetch("/api/appointments/book", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        let message = "Booking failed. Please try again."
+        try {
+          const text = await response.text()
+          try {
+            message = JSON.parse(text).error || message
+          } catch {
+            message = text || message
+          }
+        } catch { }
+        throw new Error(message)
+      }
+
+      const result = await response.json()
+      toast({
+        title: "Appointment Booked",
+        description: result.message || "Your appointment has been successfully scheduled.",
+      })
+      router.push("/patient/dashboard")
     } catch (error) {
-        console.error("Booking confirmation error:", error)
-        toast({ variant: "destructive", title: "Booking Error", description: error.message })
+      console.error("Booking confirmation error:", error)
+      toast({ variant: "destructive", title: "Booking Error", description: error.message })
     } finally {
-        setIsLoadingBooking(false)
+      setIsLoadingBooking(false)
     }
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
       <UnifiedSidebar userType="patient" isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
-      
+
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 bg-white shadow-sm border-b">
+        <header className="sticky top-0 z-10 border-b bg-white shadow-sm">
           <div className="flex h-16 items-center justify-between px-4">
             <div className="flex items-center gap-4">
               <HamburgerButton onClick={() => setIsSidebarOpen(true)} />
@@ -185,17 +431,19 @@ export default function BookAppointment() {
           </div>
         </header>
 
-        <main className="flex-1 p-6 max-w-4xl mx-auto w-full">
+        <main className="mx-auto flex-1 w-full max-w-4xl p-6">
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-gray-900">Book New Appointment</h1>
-            <p className="text-gray-600 mt-1">Tell us about your needs and we'll match you with the right therapist</p>
+            <p className="mt-1 text-gray-600">
+              Share your concern, add a short speech sample, and we&apos;ll route you to the right therapist.
+            </p>
           </div>
 
           <div className="mb-8">
-            <div className="flex justify-between mb-8">
-              <div className={`h-2 w-1/3 ${step >= 1 ? "bg-teal-500" : "bg-gray-200"} rounded-l-full`}></div>
-              <div className={`h-2 w-1/3 ${step >= 2 ? "bg-teal-500" : "bg-gray-200"}`}></div>
-              <div className={`h-2 w-1/3 ${step >= 3 ? "bg-teal-500" : "bg-gray-200"} rounded-r-full`}></div>
+            <div className="mb-8 flex justify-between">
+              <div className={`h-2 w-1/3 rounded-l-full ${step >= 1 ? "bg-teal-500" : "bg-gray-200"}`} />
+              <div className={`h-2 w-1/3 ${step >= 2 ? "bg-teal-500" : "bg-gray-200"}`} />
+              <div className={`h-2 w-1/3 rounded-r-full ${step >= 3 ? "bg-teal-500" : "bg-gray-200"}`} />
             </div>
           </div>
 
@@ -203,9 +451,11 @@ export default function BookAppointment() {
             <Card>
               <CardHeader>
                 <CardTitle>Step 1: Tell us about your needs</CardTitle>
-                <CardDescription>Provide information about your condition and preferred location</CardDescription>
+                <CardDescription>
+                  Pick a location, describe the issue, and provide a short audio sample for screening.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
                 <div className="space-y-2">
                   <Label htmlFor="hospital">Preferred Hospital/Location</Label>
                   <Select onValueChange={(value) => handleChange("hospital", value)} value={formData.hospital}>
@@ -213,21 +463,159 @@ export default function BookAppointment() {
                       <SelectValue placeholder="Select location" />
                     </SelectTrigger>
                     <SelectContent>
-                      {hospitals.map((h) => (
-                        <SelectItem key={h._id} value={h.slug}>{h.name}</SelectItem>
+                      {hospitals.map((hospital) => (
+                        <SelectItem key={hospital._id} value={hospital.slug}>
+                          {hospital.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="issueDescription">Describe your speech or language issue</Label>
                   <Textarea
                     id="issueDescription"
-                    placeholder="Please describe your symptoms, concerns, or what you'd like help with..."
+                    placeholder="Please describe symptoms, patterns you notice, or what you'd like help with..."
                     rows={5}
                     value={formData.issueDescription}
-                    onChange={(e) => handleChange("issueDescription", e.target.value)}
+                    onChange={(event) => handleChange("issueDescription", event.target.value)}
                   />
+                </div>
+
+                <div className="rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 via-white to-amber-50 p-5">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-teal-600" />
+                        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-teal-700">Audio Intake</p>
+                      </div>
+                      <h3 className="mt-2 text-lg font-semibold text-gray-900">Record or upload a voice sample</h3>
+                      <p className="mt-1 max-w-2xl text-sm text-gray-600">
+                        We analyze a short sample with the trained Torgo model before matching you to a therapist.
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className="w-fit bg-white text-teal-700">
+                      3 second model window
+                    </Badge>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 md:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setAudioMode("record")}
+                      className={cn(
+                        "rounded-2xl border p-4 text-left transition",
+                        audioMode === "record"
+                          ? "border-teal-500 bg-white shadow-sm"
+                          : "border-teal-100 bg-white/70 hover:border-teal-300",
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-full bg-teal-100 p-2 text-teal-700">
+                          <Mic className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">Use microphone</p>
+                          <p className="text-sm text-gray-500">Capture a fresh sample in-browser</p>
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setAudioMode("upload")}
+                      className={cn(
+                        "rounded-2xl border p-4 text-left transition",
+                        audioMode === "upload"
+                          ? "border-amber-500 bg-white shadow-sm"
+                          : "border-amber-100 bg-white/70 hover:border-amber-300",
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-full bg-amber-100 p-2 text-amber-700">
+                          <Upload className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">Upload recording</p>
+                          <p className="text-sm text-gray-500">Use a WAV, MP3, M4A, or similar file</p>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+
+                  {audioMode === "record" ? (
+                    <div className="mt-5 rounded-2xl border border-dashed border-teal-300 bg-white p-5">
+                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Microphone capture</p>
+                          <p className="text-sm text-gray-500">
+                            Record a clean sentence or short speech sample. We recommend 5 to 10 seconds.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-700">
+                            {recordingSeconds}s
+                          </div>
+                          {isRecording ? (
+                            <Button type="button" variant="destructive" onClick={() => void stopRecording()}>
+                              <Square className="mr-2 h-4 w-4" />
+                              Stop
+                            </Button>
+                          ) : (
+                            <Button type="button" onClick={() => void startRecording()} className="bg-teal-600 hover:bg-teal-700">
+                              <Mic className="mr-2 h-4 w-4" />
+                              Start Recording
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-5 rounded-2xl border border-dashed border-amber-300 bg-white p-5">
+                      <Label htmlFor="audioUpload" className="mb-3 block text-sm font-medium text-gray-900">
+                        Upload your audio file
+                      </Label>
+                      <Input
+                        id="audioUpload"
+                        type="file"
+                        accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg"
+                        onChange={handleAudioUpload}
+                      />
+                      <p className="mt-2 text-xs text-gray-500">
+                        Tip: WAV works best for the integrated Python classifier.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-5 rounded-2xl border bg-white p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-full bg-slate-100 p-2 text-slate-700">
+                          <FileAudio className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {audioFile ? audioFile.name : "No audio sample selected yet"}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {audioFile
+                              ? `Ready to analyze${audioFile.type ? ` • ${audioFile.type}` : ""}`
+                              : "Your sample preview will appear here after recording or upload."}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className={audioFile ? "border-teal-300 text-teal-700" : ""}>
+                        {audioFile ? "Sample ready" : "Pending"}
+                      </Badge>
+                    </div>
+
+                    {audioPreviewUrl ? (
+                      <audio controls className="mt-4 w-full">
+                        <source src={audioPreviewUrl} />
+                      </audio>
+                    ) : null}
+                  </div>
                 </div>
               </CardContent>
               <CardFooter className="flex justify-between">
@@ -273,16 +661,16 @@ export default function BookAppointment() {
                       />
                     </PopoverContent>
                   </Popover>
-                  <p className="text-xs text-gray-500 mt-1">Note: Weekends are not available for appointments</p>
+                  <p className="mt-1 text-xs text-gray-500">Note: Weekends are not available for appointments</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="preferredTime">Preferred Time (e.g., 10:30 AM)</Label>
-                  <Input 
+                  <Input
                     id="preferredTime"
                     type="text"
                     placeholder="Enter preferred time"
                     value={selectedTime}
-                    onChange={(e) => setSelectedTime(e.target.value)}
+                    onChange={(event) => setSelectedTime(event.target.value)}
                   />
                 </div>
               </CardContent>
@@ -303,57 +691,90 @@ export default function BookAppointment() {
               <CardHeader>
                 <CardTitle>Step 3: Confirm your appointment</CardTitle>
                 <CardDescription>
-                  {isLoadingTherapists ? "Finding available therapists..." : "Select a therapist and confirm your appointment."}
+                  {isLoadingTherapists ? "Finding available therapists..." : "Review the classifier result and confirm your therapist."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 {isLoadingTherapists ? (
-                    <div className="flex flex-col items-center justify-center py-12">
-                        <Loader2 className="h-12 w-12 animate-spin text-teal-600 mb-4" />
-                        <p className="text-sm text-gray-500 mt-2">Finding available therapists...</p>
-                    </div>
-                ) : availableTherapists.length > 0 ? (
-                  <div>
-                    <Label>Select an available therapist:</Label>
-                    <RadioGroup 
-                        value={selectedTherapistId} 
-                        onValueChange={setSelectedTherapistId} 
-                        className="mt-2 space-y-3"
-                    >
-                      {availableTherapists.map((therapist) => (
-                        <Label 
-                            key={therapist._id} 
-                            className="flex items-center space-x-3 border rounded-md p-3 hover:bg-gray-50 cursor-pointer"
-                        >
-                          <RadioGroupItem value={therapist._id} id={therapist._id} />
-                          <Avatar className="h-10 w-10">
-                             <AvatarImage src={therapist.profilePictureUrl || "/placeholder.svg?height=40&width=40"} alt={therapist.name} />
-                             <AvatarFallback>{therapist.name.split(" ").map((n) => n[0]).join("")}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <span className="font-medium block">{therapist.name}</span>
-                            <span className="text-sm text-gray-500 block">{therapist.specialty}</span>
-                          </div>
-                        </Label>
-                      ))}
-                    </RadioGroup>
-
-                    {/* Time already collected in Step 2 */}
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <Loader2 className="mb-4 h-12 w-12 animate-spin text-teal-600" />
+                    <p className="mt-2 text-sm text-gray-500">Analyzing audio and evaluating condition...</p>
                   </div>
                 ) : (
-                   <p className="text-center text-gray-500 py-8">
-                       No therapists found matching your criteria for the selected date. Please try a different date or broaden your description.
-                   </p>
+                  <>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">Classifier Result</p>
+                          <h3 className="mt-2 text-xl font-semibold text-gray-900">{classifiedCondition || "Awaiting result"}</h3>
+                          <p className="mt-1 text-sm text-gray-600">
+                            Source: {classifierSource || "Not available"}
+                            {evaluationReasoning ? <><br /><span className="italic text-teal-700">"{evaluationReasoning}"</span></> : ""}
+                            {audioAnalysis?.analyzed_window_seconds
+                              ? ` • analyzed ${audioAnalysis.analyzed_window_seconds}s from your sample`
+                              : ""}
+                          </p>
+                        </div>
+                        <Badge className="w-fit bg-white text-slate-700" variant="secondary">
+                          Audio-assisted intake
+                        </Badge>
+                      </div>
+
+                      {audioAnalysis?.combined_probabilities ? (
+                        <div className="mt-5 grid gap-3 md:grid-cols-3">
+                          {Object.entries(audioAnalysis.combined_probabilities).map(([label, score]) => (
+                            <div key={label} className="rounded-2xl border bg-white p-4">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-gray-700">{label}</span>
+                                <span className="text-sm font-semibold text-gray-900">{score}%</span>
+                              </div>
+                              <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-100">
+                                <div className="h-full rounded-full bg-teal-500" style={{ width: `${Math.min(score, 100)}%` }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {availableTherapists.length > 0 ? (
+                      <div>
+                        <Label>Select an available therapist:</Label>
+                        <RadioGroup value={selectedTherapistId} onValueChange={setSelectedTherapistId} className="mt-2 space-y-3">
+                          {availableTherapists.map((therapist) => (
+                            <Label
+                              key={therapist._id}
+                              className="flex cursor-pointer items-center space-x-3 rounded-md border p-3 hover:bg-gray-50"
+                            >
+                              <RadioGroupItem value={therapist._id} id={therapist._id} />
+                              <Avatar className="h-10 w-10">
+                                <AvatarImage
+                                  src={therapist.profilePictureUrl || "/placeholder.svg?height=40&width=40"}
+                                  alt={therapist.name}
+                                />
+                                <AvatarFallback>{therapist.name.split(" ").map((part) => part[0]).join("")}</AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1">
+                                <span className="block font-medium">{therapist.name}</span>
+                                <span className="block text-sm text-gray-500">{therapist.specialty}</span>
+                              </div>
+                            </Label>
+                          ))}
+                        </RadioGroup>
+                      </div>
+                    ) : (
+                      <p className="py-8 text-center text-gray-500">
+                        No therapists found matching your criteria for the selected date. Please try a different date or time.
+                      </p>
+                    )}
+                  </>
                 )}
               </CardContent>
               <CardFooter className="flex justify-between">
                 <Button variant="outline" onClick={handleBack} disabled={isLoadingBooking}>
                   Back
                 </Button>
-                <Button 
-                    onClick={handleConfirm} 
-                    disabled={isLoadingTherapists || isLoadingBooking || availableTherapists.length === 0}
-                >
+                <Button onClick={handleConfirm} disabled={isLoadingTherapists || isLoadingBooking || availableTherapists.length === 0}>
                   {isLoadingBooking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Confirm Booking
                 </Button>
@@ -365,4 +786,3 @@ export default function BookAppointment() {
     </div>
   )
 }
-

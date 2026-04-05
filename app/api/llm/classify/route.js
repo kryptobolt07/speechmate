@@ -4,6 +4,113 @@ import dbConnect from "@/lib/dbConnect"
 import User from "@/models/User"
 import Hospital from "@/models/Hospital"
 import Appointment from "@/models/Appointment"
+import { classifySpeechAudio } from "@/lib/speech-classifier"
+import { findBestTherapistForCondition } from "@/lib/condition-matcher"
+
+export const runtime = "nodejs"
+
+async function parseRequestPayload(request) {
+  const contentType = request.headers.get("content-type") || ""
+
+  if (contentType.includes("multipart/form-data")) {
+    const formData = await request.formData()
+    const audioCandidate = formData.get("audio")
+    const audio = audioCandidate && typeof audioCandidate.arrayBuffer === "function" && audioCandidate.size > 0
+      ? audioCandidate
+      : null
+
+    return {
+      description: formData.get("description")?.toString().trim() || "",
+      hospital: formData.get("hospital")?.toString().trim() || "",
+      appointmentDate: formData.get("appointmentDate")?.toString().trim() || "",
+      appointmentTime: formData.get("appointmentTime")?.toString().trim() || "",
+      audio,
+    }
+  }
+
+  const payload = await request.json()
+  return {
+    description: payload.description?.trim() || "",
+    hospital: payload.hospital?.trim() || "",
+    appointmentDate: payload.appointmentDate?.trim() || "",
+    appointmentTime: payload.appointmentTime?.trim() || "",
+    audio: null,
+  }
+}
+
+async function evaluatePatientCondition(description, audioAnalysis) {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) {
+    console.warn('[LLM] GEMINI_API_KEY is not set; returning unverified classification')
+    if (audioAnalysis?.primary_prediction === 'Dysarthric') return { condition: 'Dysarthric', confidence: 90, reasoning: "Local model detection" }
+    return { condition: 'General Speech Therapy', confidence: 50, reasoning: "Fallback due to missing API key" }
+  }
+
+  const ai = new GoogleGenAI({ apiKey })
+  const allowedConditions = [
+    'Dysarthric',
+    'Stuttering',
+    'Articulation Disorder',
+    'Voice Disorder',
+    'Language Delay',
+    'Aphasia Rehabilitation',
+    'Swallowing Disorders (Dysphagia)',
+    'General Speech Therapy',
+  ]
+
+  const model = 'gemini-2.5-flash'
+  const systemInstruction = `You are an expert AI medical classifier assigning a speech therapy condition.
+  
+Allowed conditions: ${allowedConditions.join(', ')}
+
+You will receive the patient's text description and an audio analysis JSON payload from a specialized PyTorch model.
+Analyze both inputs carefully.
+- If the audio analysis strongly predicts 'Dysarthria', select 'Dysarthric'.
+- If the text description implies stuttering or the stuttering probability is high, choose 'Stuttering'.
+- If audio is unavailable, rely entirely on the text description to assign the best exact matching allowed condition.
+
+You must respond ONLY with a strict JSON object matching this schema:
+{
+  "condition": "The exact condition string from the allowed list",
+  "confidence": <integer from 0 to 100>,
+  "reasoning": "A 1-sentence brief reason why you chose this condition"
+}`
+
+  const userParts = []
+  if (description) {
+    userParts.push({ text: `Patient Description: ${description}` })
+  }
+  if (audioAnalysis) {
+    userParts.push({ text: `Audio Model Analysis: ${JSON.stringify(audioAnalysis)}` })
+  }
+
+  try {
+    const resp = await ai.models.generateContent({
+      model,
+      contents: [
+        { role: 'user', parts: [{ text: systemInstruction }] },
+        { role: 'user', parts: userParts },
+      ],
+      config: {
+        responseMimeType: "application/json",
+      }
+    })
+
+    let rawText = ''
+    try { rawText = resp.text() } catch (e) { rawText = resp.output_text || resp.candidates?.[0]?.content?.parts?.[0]?.text || '{}' }
+    rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim()
+    const data = JSON.parse(rawText)
+
+    return {
+      condition: allowedConditions.includes(data.condition) ? data.condition : 'General Speech Therapy',
+      confidence: data.confidence || 50,
+      reasoning: data.reasoning || "Condition evaluated based on available data."
+    }
+  } catch (err) {
+    console.error("[LLM Evaluation] Error:", err)
+    return { condition: 'General Speech Therapy', confidence: 0, reasoning: "LLM API Failure" }
+  }
+}
 
 export async function POST(request) {
   try {
@@ -18,10 +125,10 @@ export async function POST(request) {
     }
     // --- End Auth Check --- 
 
-    const { description, hospital, appointmentDate, appointmentTime } = await request.json()
+    const { description, hospital, appointmentDate, appointmentTime, audio } = await parseRequestPayload(request)
 
-    if (!description) {
-      return NextResponse.json({ error: "Description is required" }, { status: 400 })
+    if (!description && !audio) {
+      return NextResponse.json({ error: "A description or audio sample is required" }, { status: 400 })
     }
     if (!hospital) {
       return NextResponse.json({ error: "Hospital is required (slug or ObjectId)" }, { status: 400 })
@@ -44,48 +151,21 @@ export async function POST(request) {
       return NextResponse.json({ error: "Hospital not found" }, { status: 404 })
     }
 
-    // --- Gemini classification ---
-    const apiKey = process.env.GEMINI_API_KEY
-    if (!apiKey) {
-      console.error('GEMINI_API_KEY is not set')
-      return NextResponse.json({ error: "LLM not configured" }, { status: 500 })
+    let audioAnalysis = null
+    if (audio) {
+      audioAnalysis = await classifySpeechAudio(audio)
     }
 
-    const ai = new GoogleGenAI({ apiKey })
-    
-    // Phase 1: LLM returns only a condition label
-    const allowedConditions = [
-      'Stuttering',
-      'Articulation Disorder',
-      'Voice Disorder',
-      'Language Delay',
-      'General Speech Therapy',
-    ]
+    const evaluation = await evaluatePatientCondition(description, audioAnalysis)
+    const condition = evaluation.condition
 
-    const model = 'gemini-2.0-flash-001'
-    const systemInstruction = `You are a classifier. Read the user's description of a speech issue and output exactly one label from this list: ${allowedConditions.join(', ')}. Output only the label; if uncertain, choose "General Speech Therapy".`
-
-    const condResp = await ai.models.generateContent({
-      model,
-      contents: [
-        { role: 'user', parts: [{ text: systemInstruction }] },
-        { role: 'user', parts: [{ text: `Description: ${description}` }] },
-      ],
-    })
-
-    let rawCond = ''
-    try { rawCond = condResp.text?.() ?? '' } catch (e) { rawCond = (condResp.output_text || condResp?.candidates?.[0]?.content?.parts?.[0]?.text || '').toString() }
-    const normalizedCond = (rawCond || '').trim()
-    const condition = allowedConditions.find(c => c.toLowerCase() === normalizedCond.toLowerCase()) || 'General Speech Therapy'
-
-    // Log LLM output (avoid dumping PII in production)
-    console.info('[LLM] condition classification', {
+    console.info('[CLASSIFY] condition classification', {
       hospital: hospitalDoc.slug || String(hospitalDoc._id),
       appointmentDate,
       appointmentTime,
       inputChars: description?.length || 0,
-      raw: rawCond,
-      condition,
+      audioProvided: Boolean(audio),
+      evaluation,
     })
 
     // Phase 2: Server selects best therapist by availability + specialty match
@@ -111,13 +191,14 @@ export async function POST(request) {
       return NextResponse.json({ error: "No therapists available at the requested time" }, { status: 409 })
     }
 
-    const best = availableTherapists.find(t => (t.specialty || '').toLowerCase().includes(condition.toLowerCase())) || availableTherapists[0]
+    const best = findBestTherapistForCondition(availableTherapists, condition)
 
-    console.info('[LLM] server-selected therapist', {
+    console.info('[CLASSIFY] server-selected therapist', {
       therapistId: String(best._id),
       name: best.name,
       specialty: best.specialty || 'General',
       condition,
+      promptReasoning: evaluation.reasoning,
       availableCount: availableTherapists.length,
     })
 
@@ -130,10 +211,12 @@ export async function POST(request) {
         profilePictureUrl: best.profilePictureUrl || null,
       },
       condition,
+      classifierSource: audio ? 'Audio+Text' : 'Text',
+      evaluation,
+      audioAnalysis,
     })
   } catch (error) {
     console.error("Classification error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: String(error.stack || error.message || error || "Unknown Error") }, { status: 500 })
   }
 }
-

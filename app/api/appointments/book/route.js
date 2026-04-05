@@ -33,6 +33,7 @@ export async function POST(request) {
       appointmentTime,
       type, // e.g., 'Initial Assessment'
       condition, // e.g., 'Articulation Disorder'
+      classification, // Optional classifier metadata
       duration, // Optional, defaults defined in schema
       notes, // Optional patient notes
     } = await request.json()
@@ -69,12 +70,24 @@ export async function POST(request) {
       duration, // Uses default from schema if not provided
       type,
       condition,
+      classification: classification ? {
+        source: classification.source,
+        primaryPrediction: classification.primaryPrediction,
+        selectedCondition: classification.selectedCondition,
+        probabilities: classification.probabilities,
+      } : undefined,
       notes,
       status: 'confirmed', // Default to confirmed, or could be 'pending' for admin approval
     })
 
     // Save the appointment to the database
     const savedAppointment = await newAppointment.save()
+
+    await User.findByIdAndUpdate(
+      patientId,
+      { $set: { assignedTherapistId: therapistId } },
+      { new: false },
+    )
 
     console.info('[BOOK] success', { appointmentId: savedAppointment._id })
 
@@ -101,4 +114,3 @@ export async function POST(request) {
     return NextResponse.json({ error: "Internal server error during booking" }, { status: 500 })
   }
 }
-
