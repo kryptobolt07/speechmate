@@ -14,6 +14,7 @@
     "seed:therapists": "node scripts/seedTherapists.js",
     "seed:hospitals": "node scripts/seedHospitals.js",
     "seed:all": "node scripts/seedAll.js",
+    "seed:reviews": "node scripts/seedReviews.js",
     "clear:therapists": "node scripts/clearTherapists.js"
   },
   "dependencies": {
@@ -48,6 +49,7 @@
     "@radix-ui/react-tooltip": "^1.1.6",
     "autoprefixer": "^10.4.20",
     "bcryptjs": "^3.0.2",
+    "chart.js": "^4.5.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
@@ -61,6 +63,7 @@
     "next": "15.2.8",
     "next-themes": "^0.4.4",
     "react": "^19",
+    "react-chartjs-2": "^5.3.1",
     "react-day-picker": "8.10.1",
     "react-dom": "^19",
     "react-hook-form": "^7.54.1",

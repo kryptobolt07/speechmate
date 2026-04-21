@@ -24,7 +24,7 @@ const PATIENT_ROUTES = [
   { label: "Dashboard", icon: Home, href: "/patient/dashboard" },
   { label: "Appointments", icon: Calendar, href: "/patient/appointments" },
   { label: "Book New", icon: Clock, href: "/patient/book" },
-  { label: "Reviews", icon: Star, href: "/patient/reviews" },
+  { label: "Reviews", icon: Star, href: "/patient/review" },
   { label: "Profile", icon: User, href: "/patient/profile" },
 ]
 
@@ -33,7 +33,7 @@ const THERAPIST_ROUTES = [
   { label: "Schedule", icon: Calendar, href: "/therapist/schedule" },
   { label: "Patients", icon: Users, href: "/therapist/patients" },
   { label: "Session Notes", icon: ClipboardList, href: "/therapist/notes" },
-  { label: "Reviews", icon: Star, href: "/therapist/reviews" },
+  { label: "Reviews", icon: Star, href: "/therapist/review" },
   { label: "Profile", icon: User, href: "/therapist/profile" },
 ]
 

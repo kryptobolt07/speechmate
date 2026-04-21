@@ -51,7 +51,8 @@ export async function POST(request) {
     })
 
     // Set the token in a secure HttpOnly cookie
-    cookies().set('token', token, {
+    const cookieStore = await cookies()
+    cookieStore.set('token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV !== 'development', // Use secure cookies in production
         sameSite: 'strict', // Prevent CSRF

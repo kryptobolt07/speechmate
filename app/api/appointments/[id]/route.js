@@ -8,7 +8,7 @@ export async function GET(request, { params }) {
   try {
     await dbConnect()
     
-    const { id } = params
+    const { id } = await params
     const appointment = await Appointment.findById(id)
       .populate('patientId', 'name email')
       .populate('therapistId', 'name specialty')
