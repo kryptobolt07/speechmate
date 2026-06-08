@@ -14,57 +14,12 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { format } from "date-fns"
-import { CalendarIcon, FileAudio, Loader2, Mic, Sparkles, Square, Upload } from "lucide-react"
+import { CalendarIcon, FileAudio, Loader2, Sparkles, Upload } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 
-function mergeFloat32Chunks(chunks) {
-  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
-  const merged = new Float32Array(totalLength)
-  let offset = 0
 
-  for (const chunk of chunks) {
-    merged.set(chunk, offset)
-    offset += chunk.length
-  }
-
-  return merged
-}
-
-function writeWavString(view, offset, value) {
-  for (let i = 0; i < value.length; i += 1) {
-    view.setUint8(offset + i, value.charCodeAt(i))
-  }
-}
-
-function encodeWav(samples, sampleRate) {
-  const buffer = new ArrayBuffer(44 + samples.length * 2)
-  const view = new DataView(buffer)
-
-  writeWavString(view, 0, "RIFF")
-  view.setUint32(4, 36 + samples.length * 2, true)
-  writeWavString(view, 8, "WAVE")
-  writeWavString(view, 12, "fmt ")
-  view.setUint32(16, 16, true)
-  view.setUint16(20, 1, true)
-  view.setUint16(22, 1, true)
-  view.setUint32(24, sampleRate, true)
-  view.setUint32(28, sampleRate * 2, true)
-  view.setUint16(32, 2, true)
-  view.setUint16(34, 16, true)
-  writeWavString(view, 36, "data")
-  view.setUint32(40, samples.length * 2, true)
-
-  let offset = 44
-  for (let i = 0; i < samples.length; i += 1) {
-    const sample = Math.max(-1, Math.min(1, samples[i]))
-    view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true)
-    offset += 2
-  }
-
-  return buffer
-}
 
 export default function BookAppointment() {
   const [step, setStep] = useState(1)
@@ -85,21 +40,11 @@ export default function BookAppointment() {
   const [isLoadingCondition, setIsLoadingCondition] = useState(false)
   const [isLoadingTherapists, setIsLoadingTherapists] = useState(false)
   const [isLoadingBooking, setIsLoadingBooking] = useState(false)
-  const [audioMode, setAudioMode] = useState("record")
   const [audioFile, setAudioFile] = useState(null)
   const [audioPreviewUrl, setAudioPreviewUrl] = useState("")
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordingSeconds, setRecordingSeconds] = useState(0)
   const router = useRouter()
   const { toast } = useToast()
 
-  const audioContextRef = useRef(null)
-  const mediaStreamRef = useRef(null)
-  const sourceRef = useRef(null)
-  const processorRef = useRef(null)
-  const recordingChunksRef = useRef([])
-  const recordingTimerRef = useRef(null)
-  const sampleRateRef = useRef(44100)
 
   useEffect(() => {
     const loadHospitals = async () => {
@@ -118,12 +63,6 @@ export default function BookAppointment() {
 
   useEffect(() => {
     return () => {
-      void stopRecording(true)
-    }
-  }, [])
-
-  useEffect(() => {
-    return () => {
       if (audioPreviewUrl) {
         URL.revokeObjectURL(audioPreviewUrl)
       }
@@ -137,114 +76,14 @@ export default function BookAppointment() {
   }
 
   const setSelectedAudioFile = (file) => {
-    resetAudioPreview()
+    if (audioPreviewUrl) {
+      URL.revokeObjectURL(audioPreviewUrl)
+    }
+
     const nextUrl = file ? URL.createObjectURL(file) : ""
+
     setAudioFile(file)
     setAudioPreviewUrl(nextUrl)
-  }
-
-  const cleanupRecorder = async () => {
-    if (recordingTimerRef.current) {
-      window.clearInterval(recordingTimerRef.current)
-      recordingTimerRef.current = null
-    }
-
-    if (processorRef.current) {
-      processorRef.current.disconnect()
-      processorRef.current.onaudioprocess = null
-      processorRef.current = null
-    }
-
-    if (sourceRef.current) {
-      sourceRef.current.disconnect()
-      sourceRef.current = null
-    }
-
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop())
-      mediaStreamRef.current = null
-    }
-
-    if (audioContextRef.current) {
-      await audioContextRef.current.close().catch(() => { })
-      audioContextRef.current = null
-    }
-  }
-
-  const stopRecording = async (skipSave = false) => {
-    if (!isRecording && !skipSave) {
-      return
-    }
-
-    setIsRecording(false)
-    await cleanupRecorder()
-
-    if (skipSave) {
-      recordingChunksRef.current = []
-      setRecordingSeconds(0)
-      return
-    }
-
-    const mergedAudio = mergeFloat32Chunks(recordingChunksRef.current)
-    recordingChunksRef.current = []
-    setRecordingSeconds(0)
-
-    if (!mergedAudio.length) {
-      toast({
-        variant: "destructive",
-        title: "Recording failed",
-        description: "No microphone audio was captured. Please try again.",
-      })
-      return
-    }
-
-    const wavBuffer = encodeWav(mergedAudio, sampleRateRef.current)
-    const file = new File([wavBuffer], `speechmate-recording-${Date.now()}.wav`, { type: "audio/wav" })
-    setSelectedAudioFile(file)
-  }
-
-  const startRecording = async () => {
-    try {
-      await stopRecording(true)
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext
-      const audioContext = new AudioContextClass()
-      const source = audioContext.createMediaStreamSource(stream)
-      const processor = audioContext.createScriptProcessor(4096, 1, 1)
-      const silentGain = audioContext.createGain()
-      silentGain.gain.value = 0
-
-      recordingChunksRef.current = []
-      sampleRateRef.current = audioContext.sampleRate
-
-      processor.onaudioprocess = (event) => {
-        const channelData = event.inputBuffer.getChannelData(0)
-        recordingChunksRef.current.push(new Float32Array(channelData))
-      }
-
-      source.connect(processor)
-      processor.connect(silentGain)
-      silentGain.connect(audioContext.destination)
-
-      audioContextRef.current = audioContext
-      mediaStreamRef.current = stream
-      sourceRef.current = source
-      processorRef.current = processor
-
-      setIsRecording(true)
-      setRecordingSeconds(0)
-      recordingTimerRef.current = window.setInterval(() => {
-        setRecordingSeconds((current) => current + 1)
-      }, 1000)
-    } catch (error) {
-      console.error("Recording start error:", error)
-      toast({
-        variant: "destructive",
-        title: "Microphone unavailable",
-        description: "Please allow microphone access or upload an existing recording instead.",
-      })
-    }
   }
 
   const handleChange = (field, value) => {
@@ -266,7 +105,7 @@ export default function BookAppointment() {
         toast({
           variant: "destructive",
           title: "Missing information",
-          description: "Please select a location, and provide either a description or an audio sample.",
+          description: "Please select a location and provide either a description or upload an audio sample.",
         })
         return
       }
